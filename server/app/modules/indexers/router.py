@@ -10,6 +10,7 @@ from app.modules.indexer_definitions.schemas.api import IndexerDefinitionRespons
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
 from app.modules.indexers.dependencies import get_indexers_service
 from app.modules.indexers.schemas.api import (
+    CustomIndexerCreateRequest,
     IndexerLoginRequest,
     IndexerResponse,
     IndexerUpdateRequest,
@@ -70,6 +71,20 @@ async def login(
         )
     )
     return indexer_account
+
+
+@router.post(
+    "/custom",
+    status_code=status.HTTP_201_CREATED,
+    response_model=IndexerResponse,
+)
+async def create_custom(
+    payload: CustomIndexerCreateRequest,
+    indexers_service: Annotated[IndexersService, Depends(get_indexers_service)],
+    _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
+):
+    """Egyéni (Torznab) indexer felvétele."""
+    return await indexers_service.create_custom(payload)
 
 
 @router.post(

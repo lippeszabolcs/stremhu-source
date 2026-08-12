@@ -36,3 +36,13 @@ class IndexerDefinitionModel(AttributeModel, kw_only=True):
         sa.Boolean,
         default=False,
     )
+
+    kind: Mapped[str] = mapped_column(
+        sa.String,
+        default="builtin",
+    )
+
+    config: Mapped[dict | None] = mapped_column(
+        sa.JSON,
+        default=None,
+    )

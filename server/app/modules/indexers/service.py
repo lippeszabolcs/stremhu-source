@@ -1,6 +1,8 @@
 import asyncio
+from uuid import uuid4
 
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.common.logger import logger
 from app.modules.indexer_accounts.models import IndexerAccountModel
@@ -14,18 +16,27 @@ from app.modules.indexer_definitions.exceptions import (
     AuthenticationOtherException,
     CredentialsRequiredException,
 )
+from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.indexer_definitions.schemas.internal import IndexerDefinitionLogin
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
+from app.modules.indexer_definitions.torznab import (
+    TORZNAB_KIND,
+    TorznabConfig,
+)
+from app.modules.indexers.schemas.api import CustomIndexerCreateRequest
 from app.modules.indexers.schemas.internal import (
     DownloadedTorrentFile,
     IndexerLogin,
     IndexerTorrent,
 )
 from app.modules.media_attributes.utils import resolve_attribute_ids
+from app.modules.preferences.constants import PreferenceKey
 from app.modules.settings.schemas.internal import SystemSettings
 from app.modules.settings.service import SettingsService
 from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
+
+_TORZNAB_ACCOUNT_USERNAME = "apikey"
 
 
 class IndexersService:
@@ -35,11 +46,13 @@ class IndexersService:
         indexer_accounts_service: IndexerAccountsService,
         torrents_service: TorrentsService,
         settings_service: SettingsService,
+        db: Session,
     ):
         self._indexer_definitions_service = indexer_definitions_service
         self._indexer_accounts_service = indexer_accounts_service
         self._torrents_service = torrents_service
         self._settings_service = settings_service
+        self._db = db
 
     async def login(
         self,
@@ -101,6 +114,89 @@ class IndexersService:
                 detail="Bejelentkezés közben hiba történt, próbáld újra!",
             )
 
+    async def create_custom(
+        self,
+        payload: CustomIndexerCreateRequest,
+    ) -> IndexerAccountModel:
+        """Egyéni (Torznab) indexer felvétele: definíció + fiók egy lépésben."""
+        indexer_id = f"torznab-{uuid4().hex[:12]}"
+
+        instance = self._indexer_definitions_service.create_torznab_instance(
+            TorznabConfig(
+                id=indexer_id,
+                name=payload.name,
+                url=payload.torznab_url,
+                search_mode=payload.search_mode,
+            )
+        )
+
+        try:
+            # Validálás először: caps lekérés az API kulccsal
+            await instance.login(
+                IndexerDefinitionLogin(
+                    username=_TORZNAB_ACCOUNT_USERNAME,
+                    password=payload.api_key,
+                )
+            )
+
+            definition_model = IndexerDefinitionModel(
+                id=indexer_id,
+                preference_id=PreferenceKey.SITE,
+                name=payload.name,
+                url=payload.torznab_url,
+                details_path="",
+                requires_full_download=False,
+                disabled=False,
+                kind=TORZNAB_KIND,
+                config={"search_mode": payload.search_mode.value},
+                order=100,
+            )
+            self._db.add(definition_model)
+            self._db.flush()
+
+            indexer_account = await asyncio.to_thread(
+                self._indexer_accounts_service.create,
+                IndexerAccountCreate(
+                    indexer_id=indexer_id,
+                    username=_TORZNAB_ACCOUNT_USERNAME,
+                    password=payload.api_key,
+                    download_full_torrent=False,
+                    cookies=None,
+                ),
+            )
+
+            self._indexer_definitions_service.register(instance)
+
+            return indexer_account
+        except HTTPException:
+            await instance.close()
+            raise
+        except CredentialsRequiredException as e:
+            await instance.close()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        except AuthenticationException as e:
+            await instance.close()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
+        except AuthenticationOtherException as e:
+            await instance.close()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(e),
+            )
+        except Exception as e:
+            await instance.close()
+            logger.error(e)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Az egyéni indexer felvétele közben hiba történt, próbáld újra!",
+            )
+
     async def update(
         self,
         indexer_id: str,
@@ -142,6 +238,17 @@ class IndexersService:
     ) -> None:
         self._torrents_service.delete_by_indexer_id(indexer_id)
         self._indexer_accounts_service.delete(indexer_id)
+
+        # Egyéni (torznab) indexernél a definíció is a felhasználóé — törölni kell
+        definition_model = (
+            self._db.query(IndexerDefinitionModel)
+            .filter(IndexerDefinitionModel.id == indexer_id)
+            .first()
+        )
+        if definition_model and definition_model.kind != "builtin":
+            self._db.delete(definition_model)
+            self._db.flush()
+            await self._indexer_definitions_service.unregister(indexer_id)
 
     async def get_torrents_by_torrent_id(
         self,

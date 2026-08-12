@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed" xmlns:newznab="http://www.newznab.com/DTD/2010/feeds/attributes/">
+  <channel>
+    <title>Example Indexer</title>
+    <newznab:response offset="0" total="150" />
+    <item>
+      <title>Example.Movie.2020.1080p.BluRay.x264</title>
+      <guid>https://example-tracker.test/details/1001</guid>
+      <link>https://prowlarr.test/1/download?apikey=key&amp;link=aaa&amp;file=Example.Movie.2020.1080p</link>
+      <enclosure url="https://prowlarr.test/1/download?apikey=key&amp;link=aaa&amp;file=Example.Movie.2020.1080p" length="2147483648" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2000" />
+      <torznab:attr name="seeders" value="42" />
+      <torznab:attr name="peers" value="50" />
+    </item>
+    <item>
+      <title>Example.Movie.2020.720p.WEB-DL.x264</title>
+      <guid>https://example-tracker.test/details/1002</guid>
+      <link>https://prowlarr.test/1/download?apikey=key&amp;link=bbb&amp;file=Example.Movie.2020.720p</link>
+      <enclosure url="https://prowlarr.test/1/download?apikey=key&amp;link=bbb&amp;file=Example.Movie.2020.720p" length="1147483648" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2000" />
+      <torznab:attr name="seeders" value="7" />
+    </item>
+    <item>
+      <title>Example.Movie.2020.1080p.DUPLICATE</title>
+      <guid>https://example-tracker.test/details/1001-dup</guid>
+      <link>https://prowlarr.test/1/download?apikey=key&amp;link=aaa&amp;file=Example.Movie.2020.1080p</link>
+      <enclosure url="https://prowlarr.test/1/download?apikey=key&amp;link=aaa&amp;file=Example.Movie.2020.1080p" length="2147483648" type="application/x-bittorrent" />
+      <torznab:attr name="category" value="2000" />
+      <torznab:attr name="seeders" value="42" />
+    </item>
+  </channel>
+</rss>

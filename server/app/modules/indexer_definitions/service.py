@@ -9,6 +9,11 @@ from app.modules.indexer_definitions.base_indexer_definition import (
 from app.modules.indexer_definitions.integrations import discover_indexer_definitions
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.indexer_definitions.protocols import IndexerAccountStorage
+from app.modules.indexer_definitions.torznab import (
+    TORZNAB_KIND,
+    TorznabConfig,
+    TorznabIndexerDefinition,
+)
 from app.modules.preference_definitions.dependencies import (
     create_preference_definitions_service,
 )
@@ -21,10 +26,59 @@ class IndexerDefinitionsService:
         indexer_account_storage: IndexerAccountStorage | None = None,
     ):
         self._definitions: dict[str, BaseIndexerDefinition] = {}
+        self._indexer_account_storage = indexer_account_storage
 
         for definition_class in discover_indexer_definitions():
             instance = definition_class(indexer_account_storage)
             self._definitions[instance.id] = instance
+
+    def create_torznab_instance(
+        self, config: TorznabConfig
+    ) -> TorznabIndexerDefinition:
+        """Torznab definíció példányosítása a service account storage-ával."""
+        return TorznabIndexerDefinition(
+            config=config,
+            indexer_account_storage=self._indexer_account_storage,
+        )
+
+    def register(self, instance: BaseIndexerDefinition) -> None:
+        """Futásidőben regisztrál egy (egyéni) indexer definíciót.
+
+        Csak in-process állapotot módosít — egyprocesszes deploy esetén
+        elegendő; több workernél restart kellene a szinkronhoz.
+        """
+        self._definitions[instance.id] = instance
+
+    async def unregister(self, indexer_id: str) -> None:
+        """Eltávolít egy futásidőben regisztrált definíciót és lezárja a klienst."""
+        instance = self._definitions.pop(indexer_id, None)
+        if instance:
+            await instance.close()
+
+    def load_custom_from_db(self, db: Session) -> None:
+        """A DB-ben tárolt egyéni (torznab) definíciók példányosítása bootkor."""
+        custom_definitions = (
+            db.query(IndexerDefinitionModel)
+            .filter(IndexerDefinitionModel.kind == TORZNAB_KIND)
+            .all()
+        )
+
+        for definition in custom_definitions:
+            config_data = definition.config or {}
+            instance = self.create_torznab_instance(
+                TorznabConfig(
+                    id=definition.id,
+                    name=definition.name,
+                    url=definition.url,
+                    search_mode=config_data.get("search_mode", "auto"),
+                )
+            )
+            self.register(instance)
+
+        if custom_definitions:
+            logger.info(
+                f"🔌 Betöltve {len(custom_definitions)} egyéni (Torznab) indexer definíció."
+            )
 
     def get_list(self, include_disabled: bool = False) -> list[BaseIndexerDefinition]:
         def get_sort_key(instance: BaseIndexerDefinition) -> tuple[int, str]:
@@ -64,13 +118,22 @@ class IndexerDefinitionsService:
         self,
         db: Session,
     ):
-        discovered_definitions = self.get_list(include_disabled=True)
+        discovered_definitions = [
+            instance
+            for instance in self.get_list(include_disabled=True)
+            if instance.kind == "builtin"
+        ]
 
         discovered_ids = {instance.id for instance in discovered_definitions}
 
+        # Csak a beépített definíciókat szinkronizáljuk — az egyéni (torznab)
+        # sorokat a felhasználó kezeli, azokat tilos törölni
         to_delete = (
             db.query(IndexerDefinitionModel)
-            .filter(IndexerDefinitionModel.id.not_in(discovered_ids))
+            .filter(
+                IndexerDefinitionModel.id.not_in(discovered_ids),
+                IndexerDefinitionModel.kind == "builtin",
+            )
             .all()
         )
         deleted_count = len(to_delete)

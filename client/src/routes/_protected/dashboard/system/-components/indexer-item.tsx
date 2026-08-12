@@ -3,6 +3,7 @@ import {
   CircleCheckBigIcon,
   DownloadIcon,
   PenIcon,
+  PlugIcon,
   TimerIcon,
   TrashIcon,
 } from 'lucide-react'
@@ -77,6 +78,10 @@ export function IndexerItem(props: IndexerItemProps) {
 
   const tags = useMemo(() => {
     const items: { label: string; icon: JSX.Element }[] = []
+
+    if (indexer.indexerDefinition.kind === 'torznab') {
+      items.push({ label: 'Torznab', icon: <PlugIcon /> })
+    }
 
     let hitAndRun = systemSettings.hitAndRun
 

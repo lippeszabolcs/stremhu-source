@@ -1,7 +1,5 @@
-import { useSuspenseQueries } from '@tanstack/react-query'
 import type { MouseEventHandler, SubmitEventHandler } from 'react'
 import { toast } from 'sonner'
-import * as z from 'zod'
 
 import type { OpenedDialog } from '@/routes/-features/dialogs/dialogs-store'
 import { useDialogsStore } from '@/routes/-features/dialogs/dialogs-store'
@@ -23,49 +21,36 @@ import {
 } from '@/shared/components/ui/select'
 import { useAppForm } from '@/shared/contexts/form-context'
 import { parseApiError } from '@/shared/lib/utils'
-import {
-  getIndexerDefinitions,
-  useIndexerLogin,
-} from '@/shared/queries/indexers'
+import { useCustomIndexerCreate } from '@/shared/queries/indexers'
 
-import type { AddIndexerDialog } from './add-indexer.types'
+import { addCustomIndexerSchema } from './add-custom-indexer.schema'
+import type { AddCustomIndexerDialog } from './add-custom-indexer.types'
 
-const schema = z.object({
-  indexerId: z.string(),
-  username: z.string().trim().nonempty('A felhasználónév kitöltése kötelező'),
-  password: z.string().trim().nonempty('A jelszó kitöltése kötelező'),
-})
+const SEARCH_MODE_OPTIONS = [
+  { value: 'auto', label: 'Automatikus (IMDb)' },
+  { value: 'text', label: 'Szöveges keresés' },
+] as const
 
-export function AddIndexerDialog(dialog: OpenedDialog & AddIndexerDialog) {
-  const [{ data: indexerDefinitions }] = useSuspenseQueries({
-    queries: [getIndexerDefinitions],
-  })
-
-  const { activeIndexerIds } = dialog.options
-
+export function AddCustomIndexerDialog(
+  dialog: OpenedDialog & AddCustomIndexerDialog,
+) {
   const dialogsStore = useDialogsStore()
 
-  const { mutateAsync: loginIndexer } = useIndexerLogin()
-
-  // Csak a beépített oldalak jelenhetnek meg — az egyéni (Torznab)
-  // indexereknek külön dialógusa van
-  const inactiveIndexers = indexerDefinitions.filter(
-    (indexer) =>
-      indexer.kind !== 'torznab' && !activeIndexerIds.includes(indexer.id),
-  )
+  const { mutateAsync: createCustomIndexer } = useCustomIndexerCreate()
 
   const form = useAppForm({
     defaultValues: {
-      indexerId: inactiveIndexers[0]?.id ?? '',
-      username: '',
-      password: '',
+      name: '',
+      torznabUrl: '',
+      apiKey: '',
+      searchMode: 'auto' as 'auto' | 'text',
     },
     validators: {
-      onChange: schema,
+      onChange: addCustomIndexerSchema,
     },
     onSubmit: async ({ value }) => {
       try {
-        await loginIndexer(value)
+        await createCustomIndexer(value)
         dialogsStore.closeDialog(dialog.id)
       } catch (error) {
         const message = parseApiError(error)
@@ -95,28 +80,45 @@ export function AddIndexerDialog(dialog: OpenedDialog & AddIndexerDialog) {
         <form.AppForm>
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>Bejelentkezés a torrent oldalra</DialogTitle>
+              <DialogTitle>Egyéni indexer hozzáadása</DialogTitle>
               <DialogDescription>
-                Válaszd ki a bejelentkezni kívánt torrent oldalt és add meg az
-                adataidat.
+                Adj hozzá tetszőleges trackert egy Torznab kompatibilis proxy-n
+                (Prowlarr / Jackett) keresztül. A Torznab URL az adott indexer
+                feed címe (pl. http://prowlarr:9696/1/api).
               </DialogDescription>
             </DialogHeader>
-            <form.Field name="indexerId">
+            <form.AppField
+              name="name"
+              children={(field) => <field.AppTextField label="Név" />}
+            />
+            <form.AppField
+              name="torznabUrl"
+              children={(field) => <field.AppTextField label="Torznab URL" />}
+            />
+            <form.AppField
+              name="apiKey"
+              children={(field) => (
+                <field.AppTextField label="API kulcs" type="password" />
+              )}
+            />
+            <form.Field name="searchMode">
               {(field) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>Torrent oldal</FieldLabel>
+                  <FieldLabel htmlFor={field.name}>Keresési mód</FieldLabel>
                   <Select
                     value={field.state.value}
                     name={field.name}
-                    onValueChange={(value) => field.handleChange(value)}
+                    onValueChange={(value) =>
+                      field.handleChange(value as 'auto' | 'text')
+                    }
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {inactiveIndexers.map((indexer) => (
-                        <SelectItem key={indexer.id} value={indexer.id}>
-                          {indexer.name}
+                      {SEARCH_MODE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -124,18 +126,6 @@ export function AddIndexerDialog(dialog: OpenedDialog & AddIndexerDialog) {
                 </Field>
               )}
             </form.Field>
-            <form.AppField
-              name="username"
-              children={(field) => (
-                <field.AppTextField label="Felhasználónév" />
-              )}
-            />
-            <form.AppField
-              name="password"
-              children={(field) => (
-                <field.AppTextField label="Jelszó" type="password" />
-              )}
-            />
             <DialogFooter>
               <form.SubscribeButton
                 variant="outline"
@@ -145,7 +135,7 @@ export function AddIndexerDialog(dialog: OpenedDialog & AddIndexerDialog) {
                 Mégsem
               </form.SubscribeButton>
               <form.SubscribeButton type="submit">
-                Csatlakozás
+                Hozzáadás
               </form.SubscribeButton>
             </DialogFooter>
           </form>

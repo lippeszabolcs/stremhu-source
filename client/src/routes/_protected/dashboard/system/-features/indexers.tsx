@@ -1,5 +1,5 @@
 import { useSuspenseQueries } from '@tanstack/react-query'
-import { LogInIcon } from 'lucide-react'
+import { LogInIcon, PlusIcon } from 'lucide-react'
 import type { MouseEventHandler } from 'react'
 
 import { useDialogs } from '@/routes/-features/dialogs/dialogs-store'
@@ -33,7 +33,15 @@ export function Indexers() {
 
   const dialogs = useDialogs()
 
-  const renderLogin = indexers.length < indexerDefinitions.length
+  // A "Bejelentkezés" gomb csak a beépített oldalakra vonatkozik; egyéni
+  // (Torznab) indexerből akárhány felvehető
+  const builtinDefinitions = indexerDefinitions.filter(
+    (definition) => definition.kind !== 'torznab',
+  )
+  const builtinIndexers = indexers.filter(
+    (indexer) => indexer.indexerDefinition.kind !== 'torznab',
+  )
+  const renderLogin = builtinIndexers.length < builtinDefinitions.length
 
   const handleLogin: MouseEventHandler<HTMLButtonElement> = (e) => {
     e.preventDefault()
@@ -46,6 +54,14 @@ export function Indexers() {
     })
   }
 
+  const handleAddCustom: MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dialogs.openDialog({
+      type: 'ADD_CUSTOM_INDEXER',
+    })
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -53,8 +69,17 @@ export function Indexers() {
         <CardDescription>
           Kezeld a torrent oldal bejelentkezéseidet és konfiguráld őket.
         </CardDescription>
-        {renderLogin && (
-          <CardAction>
+        <CardAction className="flex gap-2">
+          <Button
+            size="icon-sm"
+            variant="outline"
+            className="rounded-full"
+            title="Egyéni indexer (Torznab)"
+            onClick={handleAddCustom}
+          >
+            <PlusIcon />
+          </Button>
+          {renderLogin && (
             <Button
               size="icon-sm"
               className="rounded-full"
@@ -62,8 +87,8 @@ export function Indexers() {
             >
               <LogInIcon />
             </Button>
-          </CardAction>
-        )}
+          )}
+        </CardAction>
       </CardHeader>
       <Separator />
       <CardContent className="grid gap-4">
@@ -84,6 +109,10 @@ export function Indexers() {
                 <Button size="sm" onClick={handleLogin}>
                   <LogInIcon />
                   Bejelentkezés
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleAddCustom}>
+                  <PlusIcon />
+                  Egyéni indexer
                 </Button>
               </div>
             </EmptyContent>

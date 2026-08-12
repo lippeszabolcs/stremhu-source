@@ -33,6 +33,21 @@ export const ContentType = {
   tv: 'tv',
 } as const
 
+export type TorznabSearchMode =
+  (typeof TorznabSearchMode)[keyof typeof TorznabSearchMode]
+
+export const TorznabSearchMode = {
+  auto: 'auto',
+  text: 'text',
+} as const
+
+export interface CustomIndexerCreateRequest {
+  name: string
+  torznabUrl: string
+  apiKey: string
+  searchMode?: TorznabSearchMode
+}
+
 export interface DDNSProviderResponse {
   id: string
   name: string
@@ -85,6 +100,7 @@ export interface IndexerDefinitionResponse {
   url: string
   detailsPath: string
   requiresFullDownload: boolean
+  kind?: string
 }
 
 export interface IndexerLoginRequest {
@@ -1670,6 +1686,25 @@ export const indexersLogin = (
 }
 
 /**
+ * Egyéni (Torznab) indexer felvétele.
+ * @summary Create Custom
+ */
+export const indexersCreateCustom = (
+  customIndexerCreateRequest: CustomIndexerCreateRequest,
+  options?: SecondParameter<typeof sourceClientInstance<IndexerResponse>>,
+) => {
+  return sourceClientInstance<IndexerResponse>(
+    {
+      url: `/api/indexers/custom`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: customIndexerCreateRequest,
+    },
+    options,
+  )
+}
+
+/**
  * Karbantartási takarítás manuális futtatása.
  * @summary Cleanup
  */
@@ -1952,6 +1987,9 @@ export type IndexersGetDefinitionListResult = NonNullable<
 >
 export type IndexersLoginResult = NonNullable<
   Awaited<ReturnType<typeof indexersLogin>>
+>
+export type IndexersCreateCustomResult = NonNullable<
+  Awaited<ReturnType<typeof indexersCreateCustom>>
 >
 export type IndexersCleanupResult = NonNullable<
   Awaited<ReturnType<typeof indexersCleanup>>

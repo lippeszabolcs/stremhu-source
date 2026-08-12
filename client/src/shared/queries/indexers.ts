@@ -5,10 +5,12 @@ import {
 } from '@tanstack/react-query'
 
 import type {
+  CustomIndexerCreateRequest,
   IndexerLoginRequest,
   IndexerUpdateRequest,
 } from '../lib/source/source-client'
 import {
+  indexersCreateCustom,
   indexersDelete,
   indexersGetDefinitionList,
   indexersGetList,
@@ -43,6 +45,22 @@ export function useIndexerLogin() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: getIndexers.queryKey })
+    },
+  })
+}
+
+export function useCustomIndexerCreate() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CustomIndexerCreateRequest) => {
+      await indexersCreateCustom(payload)
+    },
+    onSuccess: async () => {
+      await Promise.all(
+        [getIndexers.queryKey, getIndexerDefinitions.queryKey].map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      )
     },
   })
 }

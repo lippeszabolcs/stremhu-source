@@ -30,6 +30,9 @@ def sync_database_and_settings(app: FastAPI) -> None:
             indexer_definitions_service = get_indexer_definitions_service()
             indexer_definitions_service.sync_to_db(db)
 
+            # 4/b. Egyéni (Torznab) indexer definíciók betöltése a DB-ből
+            indexer_definitions_service.load_custom_from_db(db)
+
             # 5. Libtorrent beállítások szinkronizálása a SettingsService és a RelayService között
             relay_settings_service = create_relay_settings_service(db)
             relay_settings_service.sync_settings()

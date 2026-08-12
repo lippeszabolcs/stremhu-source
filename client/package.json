@@ -9,7 +9,8 @@
     "dev": "vite --port 3100",
     "generate:api": "orval",
     "lint": "eslint ./src",
-    "format": "prettier --check ./src"
+    "format": "prettier --check ./src",
+    "test": "vitest run --reporter=default --reporter=junit --outputFile=junit.xml"
   },
   "engines": {
     "node": "24"

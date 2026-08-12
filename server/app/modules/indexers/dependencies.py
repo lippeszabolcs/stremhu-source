@@ -22,6 +22,7 @@ def create_indexers_service(db: Session) -> IndexersService:
         indexer_definitions_service=indexer_definitions_service,
         torrents_service=torrents_service,
         settings_service=settings_service,
+        db=db,
     )
 
 

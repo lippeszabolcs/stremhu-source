@@ -111,6 +111,11 @@ class BaseIndexerDefinition(ABC):
         """Max egyidejű HTTP kérések száma."""
         return 5
 
+    @property
+    def kind(self) -> str:
+        """A definíció típusa: 'builtin' (kódból felfedezett) vagy 'torznab'."""
+        return "builtin"
+
     # --- Absztrakt tulajdonságok ---
 
     @property
