@@ -1,5 +1,5 @@
 import { useSuspenseQueries } from '@tanstack/react-query'
-import { LogInIcon, PlusIcon, RssIcon } from 'lucide-react'
+import { LogInIcon, RssIcon } from 'lucide-react'
 import type { MouseEventHandler } from 'react'
 
 import { useDialogs } from '@/routes/-features/dialogs/dialogs-store'
@@ -34,7 +34,7 @@ export function Indexers() {
   const dialogs = useDialogs()
 
   // A "Bejelentkezés" gomb csak a beépített oldalakra vonatkozik; egyéni
-  // (Torznab / RSS) indexerből akárhány felvehető
+  // (RSS) indexerből akárhány felvehető
   const builtinDefinitions = indexerDefinitions.filter(
     (definition) => definition.kind === 'builtin',
   )
@@ -51,14 +51,6 @@ export function Indexers() {
       options: {
         activeIndexerIds: indexers.map((indexer) => indexer.indexerId),
       },
-    })
-  }
-
-  const handleAddCustom: MouseEventHandler<HTMLButtonElement> = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    dialogs.openDialog({
-      type: 'ADD_CUSTOM_INDEXER',
     })
   }
 
@@ -86,15 +78,6 @@ export function Indexers() {
             onClick={handleAddRss}
           >
             <RssIcon />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="outline"
-            className="rounded-full"
-            title="Egyéni indexer (Prowlarr / Torznab)"
-            onClick={handleAddCustom}
-          >
-            <PlusIcon />
           </Button>
           {renderLogin && (
             <Button
@@ -130,10 +113,6 @@ export function Indexers() {
                 <Button size="sm" variant="outline" onClick={handleAddRss}>
                   <RssIcon />
                   Beépített tracker
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleAddCustom}>
-                  <PlusIcon />
-                  Egyéni indexer
                 </Button>
               </div>
             </EmptyContent>

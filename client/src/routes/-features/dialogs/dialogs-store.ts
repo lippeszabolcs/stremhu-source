@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 
-import type { AddCustomIndexerDialog } from '@/features/add-custom-indexer/add-custom-indexer.types'
 import type { AddIndexerDialog } from '@/features/add-indexer/add-indexer.types'
 import type { AddRssIndexerDialog } from '@/features/add-rss-indexer/add-rss-indexer.types'
 import type { AddUserDialog } from '@/features/add-user/add-user.types'
@@ -19,7 +18,6 @@ export type OpenDialog = BaseOpenDialog &
   (
     | ConfirmDialog
     | AddIndexerDialog
-    | AddCustomIndexerDialog
     | AddRssIndexerDialog
     | ChangeUsernameDialog
     | ChangePasswordDialog

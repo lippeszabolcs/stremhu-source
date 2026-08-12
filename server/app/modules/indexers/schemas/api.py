@@ -7,7 +7,6 @@ from pydantic.alias_generators import to_camel
 from app.modules.indexer_accounts.schemas import IndexerAccountUpdate
 from app.modules.indexer_definitions.rss import QUERY_PLACEHOLDER
 from app.modules.indexer_definitions.schemas.api import IndexerDefinitionResponse
-from app.modules.indexer_definitions.torznab import TorznabSearchMode
 
 
 class IndexerResponse(BaseModel):
@@ -44,35 +43,6 @@ class IndexerUpdateRequest(IndexerAccountUpdate):
         populate_by_name=True,
         alias_generator=to_camel,
     )
-
-
-class CustomIndexerCreateRequest(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-        alias_generator=to_camel,
-    )
-
-    name: str
-    torznab_url: str
-    api_key: str
-    search_mode: TorznabSearchMode = TorznabSearchMode.AUTO
-
-    @field_validator("name", "api_key")
-    @classmethod
-    def validate_not_blank(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("A mező kitöltése kötelező!")
-        return stripped
-
-    @field_validator("torznab_url")
-    @classmethod
-    def validate_torznab_url(cls, value: str) -> str:
-        stripped = value.strip()
-        parsed = urlparse(stripped)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise ValueError("Érvénytelen Torznab URL!")
-        return stripped
 
 
 class RssIndexerCreateRequest(BaseModel):

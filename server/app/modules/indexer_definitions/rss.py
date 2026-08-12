@@ -18,6 +18,11 @@ from pydantic import BaseModel
 from app.modules.indexer_definitions.base_indexer_definition import (
     BaseIndexerDefinition,
 )
+from app.modules.indexer_definitions.common import (
+    CinemetaClient,
+    decode_torrent_id,
+    encode_torrent_id,
+)
 from app.modules.indexer_definitions.exceptions import AuthenticationOtherException
 from app.modules.indexer_definitions.protocols import IndexerAccountStorage
 from app.modules.indexer_definitions.schemas.internal import (
@@ -26,11 +31,6 @@ from app.modules.indexer_definitions.schemas.internal import (
     IndexerDefinitionFindTorrentsResult,
     IndexerDefinitionLogin,
     IndexerDefinitionTorrent,
-)
-from app.modules.indexer_definitions.torznab import (
-    CinemetaClient,
-    decode_torrent_id,
-    encode_torrent_id,
 )
 
 RSS_KIND = "rss"

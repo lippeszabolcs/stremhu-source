@@ -47,11 +47,11 @@ export function AddIndexerDialog(dialog: OpenedDialog & AddIndexerDialog) {
 
   const { mutateAsync: loginIndexer } = useIndexerLogin()
 
-  // Csak a beépített oldalak jelenhetnek meg — az egyéni (Torznab)
+  // Csak a beépített oldalak jelenhetnek meg — az egyéni (RSS)
   // indexereknek külön dialógusa van
   const inactiveIndexers = indexerDefinitions.filter(
     (indexer) =>
-      indexer.kind !== 'torznab' && !activeIndexerIds.includes(indexer.id),
+      indexer.kind === 'builtin' && !activeIndexerIds.includes(indexer.id),
   )
 
   const form = useAppForm({

@@ -91,8 +91,8 @@ export function IndexerItem(props: IndexerItemProps) {
   const tags = useMemo(() => {
     const items: { label: string; icon: JSX.Element }[] = []
 
-    if (indexer.indexerDefinition.kind === 'torznab') {
-      items.push({ label: 'Torznab', icon: <PlugIcon /> })
+    if (indexer.indexerDefinition.kind === 'rss') {
+      items.push({ label: 'RSS', icon: <PlugIcon /> })
     }
 
     let hitAndRun = systemSettings.hitAndRun

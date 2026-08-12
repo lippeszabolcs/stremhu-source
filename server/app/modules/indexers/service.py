@@ -27,14 +27,7 @@ from app.modules.indexer_definitions.rss import (
 )
 from app.modules.indexer_definitions.schemas.internal import IndexerDefinitionLogin
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
-from app.modules.indexer_definitions.torznab import (
-    TORZNAB_KIND,
-    TorznabConfig,
-)
-from app.modules.indexers.schemas.api import (
-    CustomIndexerCreateRequest,
-    RssIndexerCreateRequest,
-)
+from app.modules.indexers.schemas.api import RssIndexerCreateRequest
 from app.modules.indexers.schemas.internal import (
     DownloadedTorrentFile,
     IndexerLogin,
@@ -48,7 +41,6 @@ from app.modules.settings.service import SettingsService
 from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
 
-_TORZNAB_ACCOUNT_USERNAME = "apikey"
 _RSS_ACCOUNT_USERNAME = "rss"
 
 
@@ -179,51 +171,6 @@ class IndexersService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Az egyéni indexer felvétele közben hiba történt, próbáld újra!",
             )
-
-    async def create_custom(
-        self,
-        payload: CustomIndexerCreateRequest,
-    ) -> IndexerAccountModel:
-        """Egyéni (Torznab) indexer felvétele: definíció + fiók egy lépésben."""
-        indexer_id = f"torznab-{uuid4().hex[:12]}"
-
-        instance = self._indexer_definitions_service.create_torznab_instance(
-            TorznabConfig(
-                id=indexer_id,
-                name=payload.name,
-                url=payload.torznab_url,
-                search_mode=payload.search_mode,
-            )
-        )
-
-        return await self._persist_custom_indexer(
-            instance=instance,
-            credential=IndexerDefinitionLogin(
-                username=_TORZNAB_ACCOUNT_USERNAME,
-                password=payload.api_key,
-            ),
-            definition_model=IndexerDefinitionModel(
-                id=indexer_id,
-                preference_id=PreferenceKey.SITE,
-                name=payload.name,
-                url=payload.torznab_url,
-                details_path="",
-                requires_full_download=False,
-                disabled=False,
-                kind=TORZNAB_KIND,
-                config={"search_mode": payload.search_mode.value},
-                order=100,
-            ),
-            account=IndexerAccountCreate(
-                indexer_id=indexer_id,
-                username=_TORZNAB_ACCOUNT_USERNAME,
-                password=payload.api_key,
-                download_full_torrent=False,
-                # Az egyéni (Torznab) tracker alapból csak tartalék forrás
-                is_primary=False,
-                cookies=None,
-            ),
-        )
 
     async def create_rss_custom(
         self,

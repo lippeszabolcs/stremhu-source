@@ -4,11 +4,11 @@ from pathlib import Path
 import httpx
 
 from app.modules.indexer_definitions.base_indexer_definition import IndexerClient
+from app.modules.indexer_definitions.common import CinemetaClient
 from app.modules.indexer_definitions.rss import (
     GenericRssIndexerDefinition,
     RssConfig,
 )
-from app.modules.indexer_definitions.torznab import CinemetaClient
 
 _DATA_DIR = Path(__file__).parent / "data" / "rss"
 

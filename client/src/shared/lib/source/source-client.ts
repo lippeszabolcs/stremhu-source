@@ -33,21 +33,6 @@ export const ContentType = {
   tv: 'tv',
 } as const
 
-export type TorznabSearchMode =
-  (typeof TorznabSearchMode)[keyof typeof TorznabSearchMode]
-
-export const TorznabSearchMode = {
-  auto: 'auto',
-  text: 'text',
-} as const
-
-export interface CustomIndexerCreateRequest {
-  name: string
-  torznabUrl: string
-  apiKey: string
-  searchMode?: TorznabSearchMode
-}
-
 export interface DDNSProviderResponse {
   id: string
   name: string
@@ -1700,25 +1685,6 @@ export const indexersLogin = (
 }
 
 /**
- * Egyéni (Torznab) indexer felvétele.
- * @summary Create Custom
- */
-export const indexersCreateCustom = (
-  customIndexerCreateRequest: CustomIndexerCreateRequest,
-  options?: SecondParameter<typeof sourceClientInstance<IndexerResponse>>,
-) => {
-  return sourceClientInstance<IndexerResponse>(
-    {
-      url: `/api/indexers/custom`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: customIndexerCreateRequest,
-    },
-    options,
-  )
-}
-
-/**
  * Beépített RSS tracker presetek listája.
  * @summary Get Rss Presets
  */
@@ -2033,9 +1999,6 @@ export type IndexersGetDefinitionListResult = NonNullable<
 >
 export type IndexersLoginResult = NonNullable<
   Awaited<ReturnType<typeof indexersLogin>>
->
-export type IndexersCreateCustomResult = NonNullable<
-  Awaited<ReturnType<typeof indexersCreateCustom>>
 >
 export type IndexersGetRssPresetsResult = NonNullable<
   Awaited<ReturnType<typeof indexersGetRssPresets>>

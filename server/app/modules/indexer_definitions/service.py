@@ -14,11 +14,6 @@ from app.modules.indexer_definitions.rss import (
     GenericRssIndexerDefinition,
     RssConfig,
 )
-from app.modules.indexer_definitions.torznab import (
-    TORZNAB_KIND,
-    TorznabConfig,
-    TorznabIndexerDefinition,
-)
 from app.modules.preference_definitions.dependencies import (
     create_preference_definitions_service,
 )
@@ -36,15 +31,6 @@ class IndexerDefinitionsService:
         for definition_class in discover_indexer_definitions():
             instance = definition_class(indexer_account_storage)
             self._definitions[instance.id] = instance
-
-    def create_torznab_instance(
-        self, config: TorznabConfig
-    ) -> TorznabIndexerDefinition:
-        """Torznab definíció példányosítása a service account storage-ával."""
-        return TorznabIndexerDefinition(
-            config=config,
-            indexer_account_storage=self._indexer_account_storage,
-        )
 
     def create_rss_instance(
         self, config: RssConfig
@@ -70,36 +56,24 @@ class IndexerDefinitionsService:
             await instance.close()
 
     def load_custom_from_db(self, db: Session) -> None:
-        """A DB-ben tárolt egyéni (torznab / rss) definíciók példányosítása bootkor."""
+        """A DB-ben tárolt egyéni (RSS) definíciók példányosítása bootkor."""
         custom_definitions = (
             db.query(IndexerDefinitionModel)
-            .filter(IndexerDefinitionModel.kind.in_([TORZNAB_KIND, RSS_KIND]))
+            .filter(IndexerDefinitionModel.kind == RSS_KIND)
             .all()
         )
 
         for definition in custom_definitions:
             config_data = definition.config or {}
-
-            if definition.kind == RSS_KIND:
-                instance: BaseIndexerDefinition = self.create_rss_instance(
-                    RssConfig(
-                        id=definition.id,
-                        name=definition.name,
-                        search_url_template=config_data.get(
-                            "search_url_template", definition.url
-                        ),
-                    )
+            instance = self.create_rss_instance(
+                RssConfig(
+                    id=definition.id,
+                    name=definition.name,
+                    search_url_template=config_data.get(
+                        "search_url_template", definition.url
+                    ),
                 )
-            else:
-                instance = self.create_torznab_instance(
-                    TorznabConfig(
-                        id=definition.id,
-                        name=definition.name,
-                        url=definition.url,
-                        search_mode=config_data.get("search_mode", "auto"),
-                    )
-                )
-
+            )
             self.register(instance)
 
         if custom_definitions:

@@ -3,6 +3,11 @@ import asyncio
 import httpx
 import pytest
 
+from app.modules.indexer_definitions.common import (
+    CinemetaClient,
+    decode_torrent_id,
+    encode_torrent_id,
+)
 from app.modules.indexer_definitions.exceptions import AuthenticationOtherException
 from app.modules.indexer_definitions.rss import (
     RSS_KIND,
@@ -11,12 +16,57 @@ from app.modules.indexer_definitions.rss import (
     get_preset,
 )
 from app.modules.indexer_definitions.schemas.internal import IndexerDefinitionLogin
-from app.modules.indexer_definitions.torznab import decode_torrent_id, encode_torrent_id
 from tests.rss_helpers import (
     RequestRecorder,
     create_rss_definition,
     rss_response,
 )
+
+
+def test_cinemeta_does_not_cache_failed_resolution():
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        # Elsőre 403 (rate-limit), másodszorra siker
+        if calls["n"] <= 2:  # movie + series próbálkozás az első hívásban
+            return httpx.Response(status_code=403, content=b"")
+        return httpx.Response(status_code=200, json={"meta": {"name": "Frieren"}})
+
+    client = CinemetaClient(transport=httpx.MockTransport(handler))
+
+    async def run():
+        first = await client.get_title("tt123")
+        second = await client.get_title("tt123")
+        await client.close()
+        return first, second
+
+    first, second = asyncio.run(run())
+
+    # A sikertelen (403) feloldás NEM cache-elődött → az újrapróbálkozás sikerül
+    assert first is None
+    assert second == "Frieren"
+
+
+def test_cinemeta_caches_successful_resolution():
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(status_code=200, json={"meta": {"name": "Bleach"}})
+
+    client = CinemetaClient(transport=httpx.MockTransport(handler))
+
+    async def run():
+        a = await client.get_title("tt999")
+        b = await client.get_title("tt999")
+        await client.close()
+        return a, b
+
+    a, b = asyncio.run(run())
+    assert a == "Bleach" and b == "Bleach"
+    # A sikeres feloldás cache-elődött → csak egyszer hívta a Cinemeta-t
+    assert calls["n"] == 1
 
 _LOGIN = IndexerDefinitionLogin(username="rss", password="")
 
