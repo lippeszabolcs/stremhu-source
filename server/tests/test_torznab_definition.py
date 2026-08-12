@@ -278,6 +278,33 @@ def test_auto_mode_falls_back_to_text_without_imdb_caps():
     assert len(result.torrents) == 1
 
 
+def test_results_sorted_by_seeders_and_capped(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        "app.modules.indexer_definitions.torznab._MAX_RESULTS",
+        2,
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        search_type = request.url.params.get("t")
+        if search_type == "caps":
+            return xml_response("caps_imdb.xml")
+        if search_type == "movie":
+            return xml_response("search_movie_p1.xml")
+        return xml_response("search_movie_p2.xml")
+
+    definition = create_torznab_definition(handler)
+
+    async def run():
+        await definition.login(_LOGIN)
+        return await definition._fetch_torrents("tt1234567")
+
+    result = asyncio.run(run())
+
+    # dedupe után 3 egyedi (42, 7, 3 seeder) -> cap 2 -> a legjobb kettő,
+    # seeder szerint csökkenő sorrendben
+    assert [torrent.seeders for torrent in result.torrents] == [42, 7]
+
+
 def test_torrent_id_roundtrip():
     download_url = (
         "https://prowlarr.test/1/download?apikey=key&link=aaa&file=Example.Movie"

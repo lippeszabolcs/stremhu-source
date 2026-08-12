@@ -40,6 +40,10 @@ TORZNAB_KIND = "torznab"
 
 _PAGE_SIZE = 100
 _RESULTS_LIMIT = 300
+# A válaszban visszaadott találatok maximuma (seeder szerint a legjobbak).
+# Minden visszaadott találat .torrent fájlját letölti a rendszer a válasz
+# előtt, ezért ez közvetlenül a Stremio válaszidejét szabályozza.
+_MAX_RESULTS = 50
 _ERROR_SNIFF_LIMIT = 256
 # Torznab/Newznab hitelesítési hibakódok: 100 (rossz kulcs), 101 (felfüggesztett
 # fiók), 102 (nincs jogosultság)
@@ -153,6 +157,12 @@ class TorznabIndexerDefinition(BaseIndexerDefinition):
                 )
 
     # --- Tulajdonságok ---
+
+    @property
+    def max_concurrent(self) -> int:
+        # A Torznab proxy (Prowlarr/Jackett) jól bírja a párhuzamos kéréseket,
+        # a .torrent letöltések átfutása miatt fontos a magasabb érték
+        return 10
 
     @property
     def kind(self) -> str:
@@ -281,8 +291,12 @@ class TorznabIndexerDefinition(BaseIndexerDefinition):
             torrents, lambda torrent: torrent.torrent_id
         )
 
+        # Seeder szerint a legjobb találatokat tartjuk meg — minden visszaadott
+        # torrent fájlját letölti a rendszer, így ez szabja meg a válaszidőt
+        unique_torrents.sort(key=lambda torrent: torrent.seeders, reverse=True)
+
         return IndexerDefinitionFindTorrentsResult(
-            torrents=unique_torrents[:_RESULTS_LIMIT],
+            torrents=unique_torrents[:_MAX_RESULTS],
             next_page=None,
         )
 
