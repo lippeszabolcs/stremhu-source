@@ -34,6 +34,10 @@ class IndexerAccountModel(Base):
 
     download_full_torrent: Mapped[bool] = mapped_column(sa.Boolean, default=False)
 
+    # Elsődleges tracker: alapból csak ezeken fut a keresés, a többi csak
+    # tartalékként, ha az elsődlegesek nem adnak streamet
+    is_primary: Mapped[bool] = mapped_column(sa.Boolean, default=True)
+
     cookies: Mapped[dict | None] = mapped_column(sa.JSON, default=None)
 
     updated_at: Mapped[datetime.datetime] = mapped_column(

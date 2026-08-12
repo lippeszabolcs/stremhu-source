@@ -8,6 +8,7 @@ from app.modules.indexer_definitions.schemas.internal import IndexerDefinition
 class IndexerAccountBase(BaseModel):
     username: str
     download_full_torrent: bool
+    is_primary: bool = True
     hit_and_run: bool | None = None
     keep_seed_seconds: int | None = None
 
@@ -26,5 +27,6 @@ class IndexerAccount(IndexerAccountBase):
 
 class IndexerAccountUpdate(BaseModel):
     download_full_torrent: bool | None = None
+    is_primary: bool | None = None
     hit_and_run: bool | None = None
     keep_seed_seconds: int | None = None

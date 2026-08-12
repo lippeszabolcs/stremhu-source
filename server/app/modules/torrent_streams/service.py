@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.common.schemas.internal import SeriesInfo
 from app.modules.attributes.models import AttributeModel
+from app.modules.indexers.schemas.internal import IndexerSearchScope
 from app.modules.preferences.service import PreferencesService
 from app.modules.settings.service import SettingsService
+from app.modules.torrent_source_provider.schemas import TorrentSource
 from app.modules.torrent_source_provider.service import (
     TorrentSourceProviderService,
 )
@@ -39,31 +41,34 @@ class TorrentStreamsService:
         imdb_id: str,
         series: SeriesInfo | None = None,
     ) -> tuple[list[TorrentStream], list[str]]:
+        app_url = await asyncio.to_thread(self._settings_service.get_app_url)
+
+        # 1. fázis: csak az elsődleges trackereken keresünk
         (
             torrent_sources,
             indexer_errors,
-        ) = await self._torrent_source_provider_service.find_by_imdb_id(imdb_id)
-
-        app_url = await asyncio.to_thread(self._settings_service.get_app_url)
-
-        torrent_streams: list[TorrentStream] = []
-
-        for torrent_source in torrent_sources:
-            torrent_stream = TorrentStream.from_imdb_id(
-                indexer_torrent=torrent_source.indexer_torrent,
-                torrent_file=torrent_source.torrent_file,
-                series=series,
-                app_url=app_url,
-                user=user,
-            )
-
-            if torrent_stream:
-                torrent_streams.append(torrent_stream)
-
-        filtered_torrent_streams = self._filter_torrent_streams(torrent_streams, user)
-        sorted_torrent_streams = self._sort_torrent_streams(
-            filtered_torrent_streams, user
+        ) = await self._torrent_source_provider_service.find_by_imdb_id(
+            imdb_id, IndexerSearchScope.PRIMARY
         )
+
+        sorted_torrent_streams = self._build_stream_list(
+            torrent_sources, user, series, app_url
+        )
+
+        # Tartalék: ha az elsődlegesekből (a felhasználó szűrői után) egyetlen
+        # stream sem állt elő, keresés a nem elsődleges trackereken is
+        if not sorted_torrent_streams:
+            (
+                secondary_sources,
+                secondary_errors,
+            ) = await self._torrent_source_provider_service.find_by_imdb_id(
+                imdb_id, IndexerSearchScope.SECONDARY
+            )
+            indexer_errors = indexer_errors + secondary_errors
+
+            sorted_torrent_streams = self._build_stream_list(
+                torrent_sources + secondary_sources, user, series, app_url
+            )
 
         if user.enable_smart_filter:
             limit = user.smart_filter_limit
@@ -117,6 +122,31 @@ class TorrentStreamsService:
             app_url=app_url,
             user=user,
         )
+
+    def _build_stream_list(
+        self,
+        torrent_sources: list[TorrentSource],
+        user: UserModel,
+        series: SeriesInfo | None,
+        app_url: str,
+    ) -> list[TorrentStream]:
+        """Forrásokból stream lista: építés + felhasználói szűrés + rendezés."""
+        torrent_streams: list[TorrentStream] = []
+
+        for torrent_source in torrent_sources:
+            torrent_stream = TorrentStream.from_imdb_id(
+                indexer_torrent=torrent_source.indexer_torrent,
+                torrent_file=torrent_source.torrent_file,
+                series=series,
+                app_url=app_url,
+                user=user,
+            )
+
+            if torrent_stream:
+                torrent_streams.append(torrent_stream)
+
+        filtered_torrent_streams = self._filter_torrent_streams(torrent_streams, user)
+        return self._sort_torrent_streams(filtered_torrent_streams, user)
 
     def _is_torrent_stream_excluded(
         self,

@@ -20,6 +20,7 @@ class IndexerResponse(BaseModel):
     indexer_definition: IndexerDefinitionResponse
     username: str
     download_full_torrent: bool
+    is_primary: bool
     hit_and_run: bool | None
     keep_seed_seconds: int | None
     updated_at: datetime

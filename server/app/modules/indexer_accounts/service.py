@@ -28,8 +28,10 @@ class IndexerAccountsService:
             )
         return self._indexer_accounts_repository.create(payload)
 
-    def find_list(self) -> list[IndexerAccountModel]:
-        return self._indexer_accounts_repository.find_list()
+    def find_list(
+        self, is_primary: bool | None = None
+    ) -> list[IndexerAccountModel]:
+        return self._indexer_accounts_repository.find_list(is_primary=is_primary)
 
     def find_by_id(self, indexer_id: str) -> IndexerAccountModel | None:
         return self._indexer_accounts_repository.find_by_id(indexer_id)

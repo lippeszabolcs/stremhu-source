@@ -114,6 +114,7 @@ export interface IndexerResponse {
   indexerDefinition: IndexerDefinitionResponse
   username: string
   downloadFullTorrent: boolean
+  isPrimary: boolean
   hitAndRun: boolean | null
   keepSeedSeconds: number | null
   updatedAt: string
@@ -122,6 +123,7 @@ export interface IndexerResponse {
 
 export interface IndexerUpdateRequest {
   downloadFullTorrent?: boolean | null
+  isPrimary?: boolean | null
   hitAndRun?: boolean | null
   keepSeedSeconds?: number | null
 }

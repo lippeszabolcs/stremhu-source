@@ -5,7 +5,7 @@ from typing import cast, overload
 from app.common.database import isolated_db_session
 from app.common.keyed_lock import KeyedLock
 from app.common.logger import logger
-from app.modules.indexers.schemas.internal import IndexerTorrent
+from app.modules.indexers.schemas.internal import IndexerSearchScope, IndexerTorrent
 from app.modules.indexers.service import IndexersService
 from app.modules.torrent_files.dependencies import create_torrent_files_service
 from app.modules.torrent_files.exceptions import InvalidTorrentFileException
@@ -35,13 +35,16 @@ class TorrentSourceProviderService:
     async def find_by_imdb_id(
         self,
         imdb_id: str,
+        scope: IndexerSearchScope = IndexerSearchScope.ALL,
     ) -> tuple[list[TorrentSource], list[str]]:
-        task_key = f"imdb:{imdb_id}"
+        # A scope a kulcs része: egy csak-elsődleges keresés eredményét nem
+        # kaphatja meg egy párhuzamos teljes (vagy tartalék) keresés
+        task_key = f"imdb:{scope.value}:{imdb_id}"
         if task_key in _ongoing_tasks:
             result = await _ongoing_tasks[task_key]
             return cast(tuple[list[TorrentSource], list[str]], result)
 
-        task = asyncio.create_task(self._find_by_imdb_id(imdb_id))
+        task = asyncio.create_task(self._find_by_imdb_id(imdb_id, scope))
         _ongoing_tasks[task_key] = task
         try:
             return await task
@@ -51,11 +54,12 @@ class TorrentSourceProviderService:
     async def _find_by_imdb_id(
         self,
         imdb_id: str,
+        scope: IndexerSearchScope,
     ) -> tuple[list[TorrentSource], list[str]]:
         (
             indexer_torrents,
             indexer_errors,
-        ) = await self._indexers_service.get_torrents_by_imdb_id(imdb_id)
+        ) = await self._indexers_service.get_torrents_by_imdb_id(imdb_id, scope)
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 

@@ -27,6 +27,7 @@ from app.modules.indexers.schemas.api import CustomIndexerCreateRequest
 from app.modules.indexers.schemas.internal import (
     DownloadedTorrentFile,
     IndexerLogin,
+    IndexerSearchScope,
     IndexerTorrent,
 )
 from app.modules.media_attributes.utils import resolve_attribute_ids
@@ -87,6 +88,7 @@ class IndexersService:
                     username=payload.username,
                     password=payload.password,
                     download_full_torrent=indexer_definition.requires_full_download,
+                    is_primary=True,
                     cookies=indexer_definition.cookies,
                 ),
             )
@@ -161,6 +163,8 @@ class IndexersService:
                     username=_TORZNAB_ACCOUNT_USERNAME,
                     password=payload.api_key,
                     download_full_torrent=False,
+                    # Az egyéni (Torznab) tracker alapból csak tartalék forrás
+                    is_primary=False,
                     cookies=None,
                 ),
             )
@@ -332,9 +336,19 @@ class IndexersService:
     async def get_torrents_by_imdb_id(
         self,
         imdb_id: str,
+        scope: IndexerSearchScope = IndexerSearchScope.ALL,
     ) -> tuple[list[IndexerTorrent], list[str]]:
+        # Scope szerinti szűrés: PRIMARY = csak elsődleges trackerek,
+        # SECONDARY = csak tartalék trackerek, ALL = mind
+        is_primary: bool | None = None
+        if scope == IndexerSearchScope.PRIMARY:
+            is_primary = True
+        elif scope == IndexerSearchScope.SECONDARY:
+            is_primary = False
+
         indexer_accounts = await asyncio.to_thread(
-            self._indexer_accounts_service.find_list
+            self._indexer_accounts_service.find_list,
+            is_primary,
         )
 
         async def fetch_and_map(

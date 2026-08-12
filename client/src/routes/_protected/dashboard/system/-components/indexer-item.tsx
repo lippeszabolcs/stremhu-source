@@ -23,9 +23,11 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/shared/components/ui/item'
+import { Label } from '@/shared/components/ui/label'
+import { Switch } from '@/shared/components/ui/switch'
 import type { IndexerResponse } from '@/shared/lib/source/source-client'
 import { assertExists, parseApiError } from '@/shared/lib/utils'
-import { useIndexerDelete } from '@/shared/queries/indexers'
+import { useIndexerDelete, useIndexerUpdate } from '@/shared/queries/indexers'
 import { getSystemSettings } from '@/shared/queries/system'
 
 type IndexerItemProps = {
@@ -42,6 +44,16 @@ export function IndexerItem(props: IndexerItemProps) {
   const confirmDialog = useConfirmDialog()
 
   const { mutateAsync: deleteIndexer } = useIndexerDelete()
+  const { mutateAsync: updateIndexer } = useIndexerUpdate(indexer.indexerId)
+
+  const handlePrimaryChange = async (checked: boolean) => {
+    try {
+      await updateIndexer({ isPrimary: checked })
+    } catch (error) {
+      const message = parseApiError(error)
+      toast.error(message)
+    }
+  }
 
   const handleEditIndexer: MouseEventHandler<HTMLButtonElement> = (e) => {
     e.preventDefault()
@@ -134,6 +146,22 @@ export function IndexerItem(props: IndexerItemProps) {
         )}
       </ItemContent>
       <ItemActions>
+        <div
+          className="flex items-center gap-2"
+          title="Elsődleges tracker: alapból csak ezeken keres a rendszer, a többi csak tartalék"
+        >
+          <Label
+            htmlFor={`primary-${indexer.indexerId}`}
+            className="text-muted-foreground text-xs"
+          >
+            Elsődleges
+          </Label>
+          <Switch
+            id={`primary-${indexer.indexerId}`}
+            checked={indexer.isPrimary}
+            onCheckedChange={handlePrimaryChange}
+          />
+        </div>
         <Button
           size="icon-sm"
           className="rounded-full"

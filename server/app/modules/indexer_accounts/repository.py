@@ -17,6 +17,7 @@ class IndexerAccountsRepository:
             username=payload.username,
             password=payload.password,
             download_full_torrent=payload.download_full_torrent,
+            is_primary=payload.is_primary,
             hit_and_run=payload.hit_and_run,
             keep_seed_seconds=payload.keep_seed_seconds,
             cookies=payload.cookies,
@@ -27,12 +28,17 @@ class IndexerAccountsRepository:
 
         return model
 
-    def find_list(self) -> list[IndexerAccountModel]:
-        return (
-            self.db.query(IndexerAccountModel)
-            .options(joinedload(IndexerAccountModel.indexer_definition))
-            .all()
+    def find_list(
+        self, is_primary: bool | None = None
+    ) -> list[IndexerAccountModel]:
+        query = self.db.query(IndexerAccountModel).options(
+            joinedload(IndexerAccountModel.indexer_definition)
         )
+
+        if is_primary is not None:
+            query = query.filter_by(is_primary=is_primary)
+
+        return query.all()
 
     def find_by_id(self, indexer_id: str) -> IndexerAccountModel | None:
         return (

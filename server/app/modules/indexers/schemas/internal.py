@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel
 
 from app.modules.indexer_accounts.models import IndexerAccountModel
@@ -5,6 +7,14 @@ from app.modules.indexer_definitions.schemas.internal import (
     IndexerDefinitionLogin,
 )
 from app.modules.media_attributes.models import MediaAttributeModel
+
+
+class IndexerSearchScope(str, Enum):
+    """Mely indexereken fusson a keresés (elsődleges / tartalék / mind)."""
+
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+    ALL = "all"
 
 
 class IndexerLogin(IndexerDefinitionLogin):
