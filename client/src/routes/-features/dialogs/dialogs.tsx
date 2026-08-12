@@ -3,6 +3,7 @@ import { Fragment } from 'react/jsx-runtime'
 
 import { AddCustomIndexerDialog } from '@/features/add-custom-indexer/add-custom-indexer-dialog'
 import { AddIndexerDialog } from '@/features/add-indexer/add-indexer-dialog'
+import { AddRssIndexerDialog } from '@/features/add-rss-indexer/add-rss-indexer-dialog'
 import { AddUserDialog } from '@/features/add-user/add-user-dialog'
 import { ChangePasswordDialog } from '@/features/change-password/change-password-dialog'
 import { ChangeUsernameDialog } from '@/features/change-username/change-username-dialog'
@@ -19,6 +20,7 @@ const dialogComponents = {
   CONFIRM: ConfirmDialog,
   ADD_INDEXER: AddIndexerDialog,
   ADD_CUSTOM_INDEXER: AddCustomIndexerDialog,
+  ADD_RSS_INDEXER: AddRssIndexerDialog,
   CHANGE_USERNAME: ChangeUsernameDialog,
   CHANGE_PASSWORD: ChangePasswordDialog,
   ADD_USER: AddUserDialog,

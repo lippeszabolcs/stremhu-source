@@ -1,5 +1,5 @@
 import { useSuspenseQueries } from '@tanstack/react-query'
-import { LogInIcon, PlusIcon } from 'lucide-react'
+import { LogInIcon, PlusIcon, RssIcon } from 'lucide-react'
 import type { MouseEventHandler } from 'react'
 
 import { useDialogs } from '@/routes/-features/dialogs/dialogs-store'
@@ -34,12 +34,12 @@ export function Indexers() {
   const dialogs = useDialogs()
 
   // A "Bejelentkezés" gomb csak a beépített oldalakra vonatkozik; egyéni
-  // (Torznab) indexerből akárhány felvehető
+  // (Torznab / RSS) indexerből akárhány felvehető
   const builtinDefinitions = indexerDefinitions.filter(
-    (definition) => definition.kind !== 'torznab',
+    (definition) => definition.kind === 'builtin',
   )
   const builtinIndexers = indexers.filter(
-    (indexer) => indexer.indexerDefinition.kind !== 'torznab',
+    (indexer) => indexer.indexerDefinition.kind === 'builtin',
   )
   const renderLogin = builtinIndexers.length < builtinDefinitions.length
 
@@ -62,6 +62,14 @@ export function Indexers() {
     })
   }
 
+  const handleAddRss: MouseEventHandler<HTMLButtonElement> = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dialogs.openDialog({
+      type: 'ADD_RSS_INDEXER',
+    })
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -74,7 +82,16 @@ export function Indexers() {
             size="icon-sm"
             variant="outline"
             className="rounded-full"
-            title="Egyéni indexer (Torznab)"
+            title="Beépített tracker (RSS, pl. Nyaa.si)"
+            onClick={handleAddRss}
+          >
+            <RssIcon />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="outline"
+            className="rounded-full"
+            title="Egyéni indexer (Prowlarr / Torznab)"
             onClick={handleAddCustom}
           >
             <PlusIcon />
@@ -105,10 +122,14 @@ export function Indexers() {
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button size="sm" onClick={handleLogin}>
                   <LogInIcon />
                   Bejelentkezés
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleAddRss}>
+                  <RssIcon />
+                  Beépített tracker
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleAddCustom}>
                   <PlusIcon />

@@ -9,6 +9,11 @@ from app.modules.indexer_definitions.base_indexer_definition import (
 from app.modules.indexer_definitions.integrations import discover_indexer_definitions
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
 from app.modules.indexer_definitions.protocols import IndexerAccountStorage
+from app.modules.indexer_definitions.rss import (
+    RSS_KIND,
+    GenericRssIndexerDefinition,
+    RssConfig,
+)
 from app.modules.indexer_definitions.torznab import (
     TORZNAB_KIND,
     TorznabConfig,
@@ -41,6 +46,15 @@ class IndexerDefinitionsService:
             indexer_account_storage=self._indexer_account_storage,
         )
 
+    def create_rss_instance(
+        self, config: RssConfig
+    ) -> GenericRssIndexerDefinition:
+        """Beépített RSS definíció példányosítása a service account storage-ával."""
+        return GenericRssIndexerDefinition(
+            config=config,
+            indexer_account_storage=self._indexer_account_storage,
+        )
+
     def register(self, instance: BaseIndexerDefinition) -> None:
         """Futásidőben regisztrál egy (egyéni) indexer definíciót.
 
@@ -56,28 +70,41 @@ class IndexerDefinitionsService:
             await instance.close()
 
     def load_custom_from_db(self, db: Session) -> None:
-        """A DB-ben tárolt egyéni (torznab) definíciók példányosítása bootkor."""
+        """A DB-ben tárolt egyéni (torznab / rss) definíciók példányosítása bootkor."""
         custom_definitions = (
             db.query(IndexerDefinitionModel)
-            .filter(IndexerDefinitionModel.kind == TORZNAB_KIND)
+            .filter(IndexerDefinitionModel.kind.in_([TORZNAB_KIND, RSS_KIND]))
             .all()
         )
 
         for definition in custom_definitions:
             config_data = definition.config or {}
-            instance = self.create_torznab_instance(
-                TorznabConfig(
-                    id=definition.id,
-                    name=definition.name,
-                    url=definition.url,
-                    search_mode=config_data.get("search_mode", "auto"),
+
+            if definition.kind == RSS_KIND:
+                instance: BaseIndexerDefinition = self.create_rss_instance(
+                    RssConfig(
+                        id=definition.id,
+                        name=definition.name,
+                        search_url_template=config_data.get(
+                            "search_url_template", definition.url
+                        ),
+                    )
                 )
-            )
+            else:
+                instance = self.create_torznab_instance(
+                    TorznabConfig(
+                        id=definition.id,
+                        name=definition.name,
+                        url=definition.url,
+                        search_mode=config_data.get("search_mode", "auto"),
+                    )
+                )
+
             self.register(instance)
 
         if custom_definitions:
             logger.info(
-                f"🔌 Betöltve {len(custom_definitions)} egyéni (Torznab) indexer definíció."
+                f"🔌 Betöltve {len(custom_definitions)} egyéni indexer definíció."
             )
 
     def get_list(self, include_disabled: bool = False) -> list[BaseIndexerDefinition]:

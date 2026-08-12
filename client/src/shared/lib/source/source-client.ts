@@ -476,6 +476,18 @@ export interface RelaySettingsUpdateRequest {
   enableUpnpAndNatpmp?: boolean | null
 }
 
+export interface RssIndexerCreateRequest {
+  name: string
+  presetId?: string | null
+  customUrl?: string | null
+}
+
+export interface RssPreset {
+  id: string
+  name: string
+  url: string
+}
+
 export interface StremioCatalogResponse {
   metas: MetaPreview[]
 }
@@ -1707,6 +1719,38 @@ export const indexersCreateCustom = (
 }
 
 /**
+ * Beépített RSS tracker presetek listája.
+ * @summary Get Rss Presets
+ */
+export const indexersGetRssPresets = (
+  options?: SecondParameter<typeof sourceClientInstance<RssPreset[]>>,
+) => {
+  return sourceClientInstance<RssPreset[]>(
+    { url: `/api/indexers/rss-presets`, method: 'GET' },
+    options,
+  )
+}
+
+/**
+ * Beépített RSS indexer felvétele (preset vagy egyéni URL).
+ * @summary Create Rss
+ */
+export const indexersCreateRss = (
+  rssIndexerCreateRequest: RssIndexerCreateRequest,
+  options?: SecondParameter<typeof sourceClientInstance<IndexerResponse>>,
+) => {
+  return sourceClientInstance<IndexerResponse>(
+    {
+      url: `/api/indexers/rss`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: rssIndexerCreateRequest,
+    },
+    options,
+  )
+}
+
+/**
  * Karbantartási takarítás manuális futtatása.
  * @summary Cleanup
  */
@@ -1992,6 +2036,12 @@ export type IndexersLoginResult = NonNullable<
 >
 export type IndexersCreateCustomResult = NonNullable<
   Awaited<ReturnType<typeof indexersCreateCustom>>
+>
+export type IndexersGetRssPresetsResult = NonNullable<
+  Awaited<ReturnType<typeof indexersGetRssPresets>>
+>
+export type IndexersCreateRssResult = NonNullable<
+  Awaited<ReturnType<typeof indexersCreateRss>>
 >
 export type IndexersCleanupResult = NonNullable<
   Awaited<ReturnType<typeof indexersCleanup>>

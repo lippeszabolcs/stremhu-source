@@ -11,19 +11,30 @@ from app.modules.indexer_accounts.schemas import (
     IndexerAccountUpdate,
 )
 from app.modules.indexer_accounts.service import IndexerAccountsService
+from app.modules.indexer_definitions.base_indexer_definition import (
+    BaseIndexerDefinition,
+)
 from app.modules.indexer_definitions.exceptions import (
     AuthenticationException,
     AuthenticationOtherException,
     CredentialsRequiredException,
 )
 from app.modules.indexer_definitions.models import IndexerDefinitionModel
+from app.modules.indexer_definitions.rss import (
+    RSS_KIND,
+    RssConfig,
+    get_preset,
+)
 from app.modules.indexer_definitions.schemas.internal import IndexerDefinitionLogin
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
 from app.modules.indexer_definitions.torznab import (
     TORZNAB_KIND,
     TorznabConfig,
 )
-from app.modules.indexers.schemas.api import CustomIndexerCreateRequest
+from app.modules.indexers.schemas.api import (
+    CustomIndexerCreateRequest,
+    RssIndexerCreateRequest,
+)
 from app.modules.indexers.schemas.internal import (
     DownloadedTorrentFile,
     IndexerLogin,
@@ -38,6 +49,7 @@ from app.modules.torrents.schemas.internal import TorrentUpdate
 from app.modules.torrents.service import TorrentsService
 
 _TORZNAB_ACCOUNT_USERNAME = "apikey"
+_RSS_ACCOUNT_USERNAME = "rss"
 
 
 class IndexersService:
@@ -116,57 +128,24 @@ class IndexersService:
                 detail="Bejelentkezés közben hiba történt, próbáld újra!",
             )
 
-    async def create_custom(
+    async def _persist_custom_indexer(
         self,
-        payload: CustomIndexerCreateRequest,
+        instance: BaseIndexerDefinition,
+        credential: IndexerDefinitionLogin,
+        definition_model: IndexerDefinitionModel,
+        account: IndexerAccountCreate,
     ) -> IndexerAccountModel:
-        """Egyéni (Torznab) indexer felvétele: definíció + fiók egy lépésben."""
-        indexer_id = f"torznab-{uuid4().hex[:12]}"
-
-        instance = self._indexer_definitions_service.create_torznab_instance(
-            TorznabConfig(
-                id=indexer_id,
-                name=payload.name,
-                url=payload.torznab_url,
-                search_mode=payload.search_mode,
-            )
-        )
-
+        """Egyéni indexer validálása, mentése és regisztrálása (közös hibakezelés)."""
         try:
-            # Validálás először: caps lekérés az API kulccsal
-            await instance.login(
-                IndexerDefinitionLogin(
-                    username=_TORZNAB_ACCOUNT_USERNAME,
-                    password=payload.api_key,
-                )
-            )
+            # Validálás először (Torznab: caps lekérés / RSS: teszt-keresés)
+            await instance.login(credential)
 
-            definition_model = IndexerDefinitionModel(
-                id=indexer_id,
-                preference_id=PreferenceKey.SITE,
-                name=payload.name,
-                url=payload.torznab_url,
-                details_path="",
-                requires_full_download=False,
-                disabled=False,
-                kind=TORZNAB_KIND,
-                config={"search_mode": payload.search_mode.value},
-                order=100,
-            )
             self._db.add(definition_model)
             self._db.flush()
 
             indexer_account = await asyncio.to_thread(
                 self._indexer_accounts_service.create,
-                IndexerAccountCreate(
-                    indexer_id=indexer_id,
-                    username=_TORZNAB_ACCOUNT_USERNAME,
-                    password=payload.api_key,
-                    download_full_torrent=False,
-                    # Az egyéni (Torznab) tracker alapból csak tartalék forrás
-                    is_primary=False,
-                    cookies=None,
-                ),
+                account,
             )
 
             self._indexer_definitions_service.register(instance)
@@ -200,6 +179,107 @@ class IndexersService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Az egyéni indexer felvétele közben hiba történt, próbáld újra!",
             )
+
+    async def create_custom(
+        self,
+        payload: CustomIndexerCreateRequest,
+    ) -> IndexerAccountModel:
+        """Egyéni (Torznab) indexer felvétele: definíció + fiók egy lépésben."""
+        indexer_id = f"torznab-{uuid4().hex[:12]}"
+
+        instance = self._indexer_definitions_service.create_torznab_instance(
+            TorznabConfig(
+                id=indexer_id,
+                name=payload.name,
+                url=payload.torznab_url,
+                search_mode=payload.search_mode,
+            )
+        )
+
+        return await self._persist_custom_indexer(
+            instance=instance,
+            credential=IndexerDefinitionLogin(
+                username=_TORZNAB_ACCOUNT_USERNAME,
+                password=payload.api_key,
+            ),
+            definition_model=IndexerDefinitionModel(
+                id=indexer_id,
+                preference_id=PreferenceKey.SITE,
+                name=payload.name,
+                url=payload.torznab_url,
+                details_path="",
+                requires_full_download=False,
+                disabled=False,
+                kind=TORZNAB_KIND,
+                config={"search_mode": payload.search_mode.value},
+                order=100,
+            ),
+            account=IndexerAccountCreate(
+                indexer_id=indexer_id,
+                username=_TORZNAB_ACCOUNT_USERNAME,
+                password=payload.api_key,
+                download_full_torrent=False,
+                # Az egyéni (Torznab) tracker alapból csak tartalék forrás
+                is_primary=False,
+                cookies=None,
+            ),
+        )
+
+    async def create_rss_custom(
+        self,
+        payload: RssIndexerCreateRequest,
+    ) -> IndexerAccountModel:
+        """Beépített RSS indexer felvétele preset vagy egyéni URL alapján."""
+        if payload.preset_id:
+            preset = get_preset(payload.preset_id)
+            if preset is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Ismeretlen preset!",
+                )
+            search_url_template = preset.url
+        else:
+            # A séma garantálja, hogy preset vagy custom_url meg van adva
+            search_url_template = payload.custom_url or ""
+
+        indexer_id = f"rss-{uuid4().hex[:12]}"
+
+        instance = self._indexer_definitions_service.create_rss_instance(
+            RssConfig(
+                id=indexer_id,
+                name=payload.name,
+                search_url_template=search_url_template,
+            )
+        )
+
+        return await self._persist_custom_indexer(
+            instance=instance,
+            # Nincs hitelesítés; a login() teszt-kereséssel validál
+            credential=IndexerDefinitionLogin(
+                username=_RSS_ACCOUNT_USERNAME,
+                password="",
+            ),
+            definition_model=IndexerDefinitionModel(
+                id=indexer_id,
+                preference_id=PreferenceKey.SITE,
+                name=payload.name,
+                url=instance.url,
+                details_path="",
+                requires_full_download=False,
+                disabled=False,
+                kind=RSS_KIND,
+                config={"search_url_template": search_url_template},
+                order=100,
+            ),
+            account=IndexerAccountCreate(
+                indexer_id=indexer_id,
+                username=_RSS_ACCOUNT_USERNAME,
+                password="",
+                download_full_torrent=False,
+                is_primary=False,
+                cookies=None,
+            ),
+        )
 
     async def update(
         self,

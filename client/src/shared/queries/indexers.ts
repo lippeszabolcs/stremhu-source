@@ -8,12 +8,15 @@ import type {
   CustomIndexerCreateRequest,
   IndexerLoginRequest,
   IndexerUpdateRequest,
+  RssIndexerCreateRequest,
 } from '../lib/source/source-client'
 import {
   indexersCreateCustom,
+  indexersCreateRss,
   indexersDelete,
   indexersGetDefinitionList,
   indexersGetList,
+  indexersGetRssPresets,
   indexersLogin,
   indexersUpdate,
 } from '../lib/source/source-client'
@@ -37,6 +40,14 @@ export const getIndexerDefinitions = queryOptions({
   },
 })
 
+export const getRssPresets = queryOptions({
+  queryKey: ['rss-presets'],
+  queryFn: async () => {
+    const presets = await indexersGetRssPresets()
+    return presets
+  },
+})
+
 export function useIndexerLogin() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -54,6 +65,22 @@ export function useCustomIndexerCreate() {
   return useMutation({
     mutationFn: async (payload: CustomIndexerCreateRequest) => {
       await indexersCreateCustom(payload)
+    },
+    onSuccess: async () => {
+      await Promise.all(
+        [getIndexers.queryKey, getIndexerDefinitions.queryKey].map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      )
+    },
+  })
+}
+
+export function useRssIndexerCreate() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: RssIndexerCreateRequest) => {
+      await indexersCreateRss(payload)
     },
     onSuccess: async () => {
       await Promise.all(

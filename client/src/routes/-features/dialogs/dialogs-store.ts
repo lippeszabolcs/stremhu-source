@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 
 import type { AddCustomIndexerDialog } from '@/features/add-custom-indexer/add-custom-indexer.types'
 import type { AddIndexerDialog } from '@/features/add-indexer/add-indexer.types'
+import type { AddRssIndexerDialog } from '@/features/add-rss-indexer/add-rss-indexer.types'
 import type { AddUserDialog } from '@/features/add-user/add-user.types'
 import type { ChangePasswordDialog } from '@/features/change-password/change-password.types'
 import type { ChangeUsernameDialog } from '@/features/change-username/change-username.types'
@@ -19,6 +20,7 @@ export type OpenDialog = BaseOpenDialog &
     | ConfirmDialog
     | AddIndexerDialog
     | AddCustomIndexerDialog
+    | AddRssIndexerDialog
     | ChangeUsernameDialog
     | ChangePasswordDialog
     | AddUserDialog

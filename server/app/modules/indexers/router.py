@@ -6,6 +6,7 @@ from app.modules.auth.dependencies import SessionGuard
 from app.modules.indexer_accounts.dependencies import get_indexer_accounts_service
 from app.modules.indexer_accounts.service import IndexerAccountsService
 from app.modules.indexer_definitions.dependencies import get_indexer_definitions_service
+from app.modules.indexer_definitions.rss import RSS_PRESETS, RssPreset
 from app.modules.indexer_definitions.schemas.api import IndexerDefinitionResponse
 from app.modules.indexer_definitions.service import IndexerDefinitionsService
 from app.modules.indexers.dependencies import get_indexers_service
@@ -14,6 +15,7 @@ from app.modules.indexers.schemas.api import (
     IndexerLoginRequest,
     IndexerResponse,
     IndexerUpdateRequest,
+    RssIndexerCreateRequest,
 )
 from app.modules.indexers.schemas.internal import IndexerLogin
 from app.modules.indexers.service import IndexersService
@@ -85,6 +87,31 @@ async def create_custom(
 ):
     """Egyéni (Torznab) indexer felvétele."""
     return await indexers_service.create_custom(payload)
+
+
+@router.get(
+    "/rss-presets",
+    response_model=list[RssPreset],
+)
+async def get_rss_presets(
+    _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
+):
+    """Beépített RSS tracker presetek listája."""
+    return RSS_PRESETS
+
+
+@router.post(
+    "/rss",
+    status_code=status.HTTP_201_CREATED,
+    response_model=IndexerResponse,
+)
+async def create_rss(
+    payload: RssIndexerCreateRequest,
+    indexers_service: Annotated[IndexersService, Depends(get_indexers_service)],
+    _: Annotated[UserModel, Depends(SessionGuard([UserRoleKey.ADMIN]))],
+):
+    """Beépített RSS indexer felvétele (preset vagy egyéni URL)."""
+    return await indexers_service.create_rss_custom(payload)
 
 
 @router.post(
