@@ -127,7 +127,10 @@ class CinemetaClient:
             except Exception:
                 continue
 
-        self._cache[imdb_id] = title
+        # Csak a sikeres feloldást cache-eljük — a hibás/üres választ (pl. a
+        # Cinemeta átmeneti 403 rate-limitje) NEM, hogy legközelebb újrapróbálja
+        if title is not None:
+            self._cache[imdb_id] = title
         return title
 
     async def close(self) -> None:
