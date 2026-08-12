@@ -280,7 +280,7 @@ def test_auto_mode_falls_back_to_text_without_imdb_caps():
 
 def test_results_sorted_by_seeders_and_capped(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "app.modules.indexer_definitions.torznab._MAX_RESULTS",
+        "app.modules.indexer_definitions.torznab._MAX_RESULTS_IMDB",
         2,
     )
 

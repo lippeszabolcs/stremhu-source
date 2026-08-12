@@ -42,8 +42,11 @@ _PAGE_SIZE = 100
 _RESULTS_LIMIT = 300
 # A válaszban visszaadott találatok maximuma (seeder szerint a legjobbak).
 # Minden visszaadott találat .torrent fájlját letölti a rendszer a válasz
-# előtt, ezért ez közvetlenül a Stremio válaszidejét szabályozza.
-_MAX_RESULTS = 50
+# előtt, ezért ez közvetlenül a Stremio válaszidejét szabályozza. Szöveges
+# módban szigorúbb a limit: a publikus oldalak (pl. nyaa) letöltésenként
+# ~2 mp-re korlátozzák a proxy-t, így 10 találat ≈ 20 mp friss keresésnél.
+_MAX_RESULTS_IMDB = 50
+_MAX_RESULTS_TEXT = 10
 _ERROR_SNIFF_LIMIT = 256
 # Torznab/Newznab hitelesítési hibakódok: 100 (rossz kulcs), 101 (felfüggesztett
 # fiók), 102 (nincs jogosultság)
@@ -294,9 +297,10 @@ class TorznabIndexerDefinition(BaseIndexerDefinition):
         # Seeder szerint a legjobb találatokat tartjuk meg — minden visszaadott
         # torrent fájlját letölti a rendszer, így ez szabja meg a válaszidőt
         unique_torrents.sort(key=lambda torrent: torrent.seeders, reverse=True)
+        max_results = _MAX_RESULTS_IMDB if use_imdb_search else _MAX_RESULTS_TEXT
 
         return IndexerDefinitionFindTorrentsResult(
-            torrents=unique_torrents[:_MAX_RESULTS],
+            torrents=unique_torrents[:max_results],
             next_page=None,
         )
 
