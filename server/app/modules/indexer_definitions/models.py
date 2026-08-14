@@ -46,3 +46,8 @@ class IndexerDefinitionModel(AttributeModel, kw_only=True):
         sa.JSON,
         default=None,
     )
+
+    supports_totp: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        default=False,
+    )

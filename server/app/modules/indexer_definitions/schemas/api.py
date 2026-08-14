@@ -15,3 +15,4 @@ class IndexerDefinitionResponse(BaseModel):
     details_path: str
     requires_full_download: bool
     kind: str = "builtin"
+    supports_totp: bool
