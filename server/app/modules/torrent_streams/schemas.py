@@ -12,7 +12,7 @@ from app.modules.media_attributes.parser import parse_torrent_name
 from app.modules.stream.schemas import StreamToken
 from app.modules.stream.utils.stream_token import generate_stream_token
 from app.modules.torrent_files.models import TorrentFileModel
-from app.modules.torrent_streams.utils.resolver_helpers import is_sample_or_trash
+from app.modules.torrent_streams.utils.resolver_helpers import is_sample
 from app.modules.torrent_streams.utils.stream_file_resolver import StreamFileResolver
 from app.modules.users.models import UserModel
 
@@ -48,10 +48,12 @@ class TorrentStream(BaseModel):
         torrent_streams: list[TorrentStream] = []
 
         for file in torrent_file.info.files:
-            if not file.is_video:
+            # Torrent-id alapú (katalógus-keresős) lejátszásnál a hangfájlok
+            # (pl. zenei albumok) is lejátszhatók
+            if not (file.is_video or file.is_audio):
                 continue
 
-            if is_sample_or_trash(file.name):
+            if is_sample(file.name):
                 continue
 
             stream_token = generate_stream_token(

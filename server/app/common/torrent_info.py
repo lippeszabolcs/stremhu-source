@@ -12,6 +12,7 @@ class TorrentFileInfo(BaseModel):
     start_piece_index: int
     end_piece_index: int
     is_video: bool
+    is_audio: bool = False
 
 
 class TorrentInfo(BaseModel):
@@ -55,6 +56,7 @@ def parse_torrent_info(torrent: bytes | libtorrent.torrent_info) -> TorrentInfo:
                 start_piece_index=start_piece_index,
                 end_piece_index=end_piece_index,
                 is_video=content_type is not None and content_type.startswith("video/"),
+                is_audio=content_type is not None and content_type.startswith("audio/"),
             )
         )
 

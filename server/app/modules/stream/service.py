@@ -151,8 +151,8 @@ class StreamService:
             raise HTTPException(400, "Érvénytelen fájl index.")
 
         file_info = torrent_file.info.files[file_index]
-        if not file_info.is_video:
-            raise HTTPException(400, "A megadott fájl nem videó.")
+        if not (file_info.is_video or file_info.is_audio):
+            raise HTTPException(400, "A megadott fájl nem videó vagy hangfájl.")
 
     def _parse_range_header(
         self,

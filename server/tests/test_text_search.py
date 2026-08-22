@@ -269,6 +269,57 @@ def test_catalog_torrent_id_fallbacks_to_text_search():
     assert len(response.metas) == 2
 
 
+def test_torrent_id_stream_includes_audio_files():
+    from app.modules.indexer_accounts.models import IndexerAccountModel
+    from app.modules.torrent_streams.schemas import TorrentStream
+    from tests.helpers import create_torrent_file_info, create_torrent_info
+
+    account = IndexerAccountModel(
+        indexer_id="ncore",
+        username="user",
+        password="pwd",
+    )
+    indexer_torrent = IndexerTorrent.model_construct(
+        indexer_account=account,
+        torrent_id="123",
+        download_url="https://ncore.pro/dl/123",
+        imdb_id=None,
+        seeders=5,
+        media_attributes=[],
+    )
+
+    torrent_file = SimpleNamespace(
+        torrent_id="123",
+        info_hash="hash",
+        info=create_torrent_info(
+            name="Tankcsapda - Album",
+            files=[
+                create_torrent_file_info(
+                    path="01 - Dal.mp3", size=100, is_video=False, is_audio=True
+                ),
+                create_torrent_file_info(
+                    path="cover.jpg", size=10, is_video=False, is_audio=False, index=1
+                ),
+                create_torrent_file_info(
+                    path="klip.mkv", size=500, is_video=True, index=2
+                ),
+            ],
+        ),
+    )
+
+    user = SimpleNamespace(api_key="key")
+
+    streams = TorrentStream.from_torrent_id(
+        indexer_torrent=indexer_torrent,  # type: ignore[arg-type]
+        torrent_file=torrent_file,  # type: ignore[arg-type]
+        app_url="https://app.test",
+        user=user,  # type: ignore[arg-type]
+    )
+
+    # A hangfájl és a videó bekerül, a kép nem
+    assert [stream.file_name for stream in streams] == ["01 - Dal.mp3", "klip.mkv"]
+
+
 def test_catalog_short_query_returns_empty():
     provider = _CatalogProviderStub()
     service = _create_catalogs_service(provider)

@@ -13,6 +13,7 @@ def create_torrent_file_info(
     path: str,
     size: int,
     is_video: bool = True,
+    is_audio: bool = False,
     index: int = 0,
 ) -> TorrentFileInfo:
     return TorrentFileInfo(
@@ -24,6 +25,7 @@ def create_torrent_file_info(
         start_piece_index=0,
         end_piece_index=0,
         is_video=is_video,
+        is_audio=is_audio,
     )
 
 
