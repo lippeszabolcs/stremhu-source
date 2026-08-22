@@ -15,6 +15,9 @@ from app.modules.torrent_files.service import TorrentFilesService
 from app.modules.torrent_source_provider.schemas import TorrentSource
 
 _torrent_provider_locks = KeyedLock()
+
+# Szabadszöveges keresésnél ennyi (legjobb seederű) találat .torrentjét töltjük le
+_TEXT_SEARCH_MAX_RESULTS = 25
 _ongoing_tasks: dict[
     str,
     asyncio.Task[tuple[list[TorrentSource], list[str]]]
@@ -60,6 +63,40 @@ class TorrentSourceProviderService:
             indexer_torrents,
             indexer_errors,
         ) = await self._indexers_service.get_torrents_by_imdb_id(imdb_id, scope)
+
+        torrent_files = await self._sync_torrent_files(indexer_torrents)
+
+        return torrent_files, indexer_errors
+
+    async def find_by_text(
+        self,
+        query: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        task_key = f"text:{query}"
+        if task_key in _ongoing_tasks:
+            result = await _ongoing_tasks[task_key]
+            return cast(tuple[list[TorrentSource], list[str]], result)
+
+        task = asyncio.create_task(self._find_by_text(query))
+        _ongoing_tasks[task_key] = task
+        try:
+            return await task
+        finally:
+            _ongoing_tasks.pop(task_key, None)
+
+    async def _find_by_text(
+        self,
+        query: str,
+    ) -> tuple[list[TorrentSource], list[str]]:
+        (
+            indexer_torrents,
+            indexer_errors,
+        ) = await self._indexers_service.get_torrents_by_text(query)
+
+        # Minden találat .torrent fájlja letöltésre kerül a válasz előtt,
+        # ezért a szinkronizálás ELŐTT vágunk a legjobb seederű találatokra
+        indexer_torrents.sort(key=lambda torrent: torrent.seeders, reverse=True)
+        indexer_torrents = indexer_torrents[:_TEXT_SEARCH_MAX_RESULTS]
 
         torrent_files = await self._sync_torrent_files(indexer_torrents)
 

@@ -75,16 +75,32 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
+    @property
+    def supports_text_search(self) -> bool:
+        return True
+
+    async def _fetch_torrents_by_text(
+        self, query: str
+    ) -> list[IndexerDefinitionTorrent]:
+        # Név szerinti keresés, csak az első (seeder szerint rendezett) oldal —
+        # minden találat .torrentje letöltésre kerül, ezért nem lapozunk
+        result = await self._search("name", query, page=1)
+        return result.torrents
+
     async def _fetch_torrents(
         self, imdb_id: str, page: int | None = None
     ) -> IndexerDefinitionFindTorrentsResult:
-        current_page = page or 1
+        return await self._search("imdb", imdb_id, page=page or 1)
+
+    async def _search(
+        self, search_field: str, search_value: str, page: int
+    ) -> IndexerDefinitionFindTorrentsResult:
         response = await self._client.get(
             "/torrents.php",
             params={
-                "oldal": str(current_page),
-                "miben": "imdb",
-                "mire": imdb_id,
+                "oldal": str(page),
+                "miben": search_field,
+                "mire": search_value,
                 "miszerint": "seeders",
                 "hogyan": "DESC",
                 "jsons": True,
@@ -124,7 +140,7 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
 
         return IndexerDefinitionFindTorrentsResult(
             torrents=torrents,
-            next_page=current_page + 1 if current_page < last_page else None,
+            next_page=page + 1 if page < last_page else None,
         )
 
     async def _fetch_torrent(

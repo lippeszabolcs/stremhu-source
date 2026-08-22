@@ -151,6 +151,15 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
 
     # --- Keresés ---
 
+    @property
+    def supports_text_search(self) -> bool:
+        return True
+
+    async def _fetch_torrents_by_text(
+        self, query: str
+    ) -> list[IndexerDefinitionTorrent]:
+        return await self._search_feed(query, imdb_id=None)
+
     async def _fetch_torrents(
         self, imdb_id: str, page: int | None = None
     ) -> IndexerDefinitionFindTorrentsResult:
@@ -163,7 +172,17 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
             )
             return IndexerDefinitionFindTorrentsResult(torrents=[])
 
-        response = await self._request_feed(title)
+        torrents = await self._search_feed(title, imdb_id=imdb_id)
+
+        return IndexerDefinitionFindTorrentsResult(
+            torrents=torrents,
+            next_page=None,
+        )
+
+    async def _search_feed(
+        self, query: str, imdb_id: str | None
+    ) -> list[IndexerDefinitionTorrent]:
+        response = await self._request_feed(query)
         channel = self._parse_channel(response)
         if channel is None:
             raise Exception(
@@ -183,8 +202,8 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
                 IndexerDefinitionTorrent(
                     torrent_id=encode_torrent_id(download_url),
                     download_url=download_url,
-                    # A találatot a lekérdezett IMDB azonosítóhoz rendeljük,
-                    # különben a base class kiszűrné
+                    # IMDb keresésnél a találatot a lekérdezett azonosítóhoz
+                    # rendeljük, különben a base class kiszűrné
                     imdb_id=imdb_id,
                     seeders=self._extract_seeders(item),
                 )
@@ -195,10 +214,7 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
         )
         unique_torrents.sort(key=lambda torrent: torrent.seeders, reverse=True)
 
-        return IndexerDefinitionFindTorrentsResult(
-            torrents=unique_torrents[:_MAX_RESULTS],
-            next_page=None,
-        )
+        return unique_torrents[:_MAX_RESULTS]
 
     async def _fetch_torrent(self, torrent_id: str) -> IndexerDefinitionTorrent | None:
         # Idegen (nem RSS) azonosítók is ideérkeznek — azokra None a válasz

@@ -416,6 +416,56 @@ class IndexersService:
 
         return indexer_torrents, errors
 
+    async def get_torrents_by_text(
+        self,
+        query: str,
+    ) -> tuple[list[IndexerTorrent], list[str]]:
+        """Szabadszöveges keresés minden szöveges keresést támogató indexeren."""
+        indexer_accounts = await asyncio.to_thread(
+            self._indexer_accounts_service.find_list
+        )
+
+        async def fetch_and_map(
+            indexer_account: IndexerAccountModel,
+        ) -> list[IndexerTorrent]:
+            indexer_definition = self._indexer_definitions_service.get_by_id(
+                indexer_account.indexer_id
+            )
+
+            if not indexer_definition.supports_text_search:
+                return []
+
+            indexer_definition_torrents = (
+                await indexer_definition.find_torrents_by_text(query)
+            )
+            return [
+                IndexerTorrent(
+                    indexer_account=indexer_account,
+                    torrent_id=indexer_definition_torrent.torrent_id,
+                    download_url=indexer_definition_torrent.download_url,
+                    imdb_id=indexer_definition_torrent.imdb_id,
+                    seeders=indexer_definition_torrent.seeders,
+                    media_attributes=resolve_attribute_ids(
+                        indexer_definition_torrent.attribute_ids
+                    ),
+                )
+                for indexer_definition_torrent in indexer_definition_torrents
+            ]
+
+        tasks = [fetch_and_map(indexer_account) for indexer_account in indexer_accounts]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        indexer_torrents: list[IndexerTorrent] = []
+        errors: list[str] = []
+
+        for result in results:
+            if isinstance(result, BaseException):
+                errors.append(str(result))
+            else:
+                indexer_torrents.extend(result)
+
+        return indexer_torrents, errors
+
     async def download_torrent(
         self,
         indexer_id: str,

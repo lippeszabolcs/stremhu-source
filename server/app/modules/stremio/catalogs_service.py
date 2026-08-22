@@ -37,19 +37,48 @@ class StremioCatalogsService:
         if media_type != MediaType.MOVIE or catalog_id != SEARCH_ID or not extra.search:
             return StremioCatalogResponse(metas=[])
 
-        parts = extra.search.split("-", 1)
-        if len(parts) < 2 or parts[0] != "t":
+        search = extra.search.strip()
+
+        # "t-<torrent_id>" formátum: konkrét torrent azonosító szerinti lekérés
+        parts = search.split("-", 1)
+        if len(parts) == 2 and parts[0] == "t":
+            try:
+                meta_previews = await self.get_metas(parts[1])
+            except Exception as e:
+                logger.error("A lista lekérésénél hiba történt: %s", e)
+                meta_previews = []
+
+            if meta_previews:
+                return StremioCatalogResponse(metas=meta_previews)
+
+        # Szabadszöveges keresés az indexereken (IMDb nélküli tartalmakhoz,
+        # pl. Formula 1, koncertek)
+        if len(search) < 2:
             return StremioCatalogResponse(metas=[])
 
-        torrent_id = parts[1]
-
         try:
-            meta_previews = await self.get_metas(torrent_id)
+            meta_previews = await self.search_metas(search)
         except Exception as e:
-            logger.error("A lista lekérésénél hiba történt: %s", e)
+            logger.error("A szöveges keresésnél hiba történt: %s", e)
             meta_previews = []
 
         return StremioCatalogResponse(metas=meta_previews)
+
+    async def search_metas(self, query: str) -> list[MetaPreview]:
+        (
+            torrent_sources,
+            _,
+        ) = await self._torrent_source_provider_service.find_by_text(query)
+
+        torrent_sources.sort(
+            key=lambda source: source.indexer_torrent.seeders,
+            reverse=True,
+        )
+
+        return [
+            MetaPreview.from_torrent_file(torrent_source.torrent_file)
+            for torrent_source in torrent_sources
+        ]
 
     async def get_metas(self, torrent_id: str) -> list[MetaPreview]:
         (

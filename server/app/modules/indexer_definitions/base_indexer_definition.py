@@ -237,6 +237,31 @@ class BaseIndexerDefinition(ABC):
     ) -> list[IndexerDefinitionTorrent]:
         return await self._find_all(imdb_id, None, [])
 
+    @property
+    def supports_text_search(self) -> bool:
+        """Támogatja-e a szabadszöveges (cím szerinti) keresést."""
+        return False
+
+    async def find_torrents_by_text(
+        self, query: str
+    ) -> list[IndexerDefinitionTorrent]:
+        """Szabadszöveges keresés a katalógus-keresőhöz (IMDb nélküli tartalmakhoz)."""
+        if not self.supports_text_search:
+            return []
+
+        try:
+            return await self._fetch_torrents_by_text(query)
+        except Exception as e:
+            error_msg = f"{self.name} nem érhető el vagy megváltozott a struktúrája."
+            self.logger.error(error_msg, exc_info=e)
+            raise IndexerDefinitionException(error_msg) from e
+
+    async def _fetch_torrents_by_text(
+        self, query: str
+    ) -> list[IndexerDefinitionTorrent]:
+        """Szabadszöveges keresés implementációja (csak ha supports_text_search)."""
+        return []
+
     async def find_torrent_by_id(
         self, torrent_id: str
     ) -> IndexerDefinitionTorrent | None:
