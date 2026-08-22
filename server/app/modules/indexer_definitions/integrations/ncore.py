@@ -121,9 +121,14 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
 
         for torrent in data.get("results", []):
             category = torrent.get("category", "")
+            # IMDb nélküli tartalmaknál (pl. zene) az nCore imdb_id-ként
+            # False-t ad vissza, nem szöveget
+            imdb_id = torrent.get("imdb_id")
+            if not isinstance(imdb_id, str) or not imdb_id:
+                imdb_id = None
             torrents.append(
                 IndexerDefinitionTorrent(
-                    imdb_id=torrent.get("imdb_id"),
+                    imdb_id=imdb_id,
                     torrent_id=str(torrent["torrent_id"]),
                     seeders=int(torrent.get("seeders", 0)),
                     download_url=torrent["download_url"],

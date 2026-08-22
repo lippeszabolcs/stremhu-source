@@ -52,7 +52,15 @@ def test_ncore_text_search_uses_name_field():
                     "seeders": "5",
                     "category": "hd_hun",
                     "imdb_id": "",
-                }
+                },
+                {
+                    # IMDb nélküli tartalomnál (pl. zene) az nCore False-t ad
+                    "torrent_id": 222,
+                    "download_url": "https://ncore.pro/torrents.php?action=download&id=222",
+                    "seeders": "3",
+                    "category": "mp3_hun",
+                    "imdb_id": False,
+                },
             ]
         )
     )
@@ -66,10 +74,11 @@ def test_ncore_text_search_uses_name_field():
     assert params["mire"] == "Formula 1"
     assert params["miszerint"] == "seeders"
 
-    assert len(torrents) == 1
+    assert len(torrents) == 2
     assert torrents[0].torrent_id == "111"
-    # IMDb nélküli találat is átmegy (nincs imdb-szűrés a szöveges úton)
-    assert torrents[0].imdb_id == ""
+    # IMDb nélküli találat is átmegy (nincs imdb-szűrés a szöveges úton),
+    # az üres/False imdb_id None-ra normalizálódik
+    assert all(torrent.imdb_id is None for torrent in torrents)
 
 
 def test_ncore_text_search_single_page_only():
