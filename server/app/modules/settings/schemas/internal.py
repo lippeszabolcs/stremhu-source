@@ -46,12 +46,14 @@ class SystemSettings(BaseModel):
     hit_and_run: bool = True
     keep_seed_seconds: int = 0
     cache_retention_seconds: int = 14 * 24 * 60 * 60  # 14 nap másodpercekben
+    filter_adult: bool = True
 
 
 class SystemSettingsUpdate(BaseModel):
     hit_and_run: bool | None = None
     keep_seed_seconds: int | None = None
     cache_retention_seconds: int | None = None
+    filter_adult: bool | None = None
 
 
 class RelaySettings(BaseModel):

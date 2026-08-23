@@ -497,12 +497,14 @@ export interface SystemSettingsResponse {
   hitAndRun: boolean
   keepSeedSeconds: number
   cacheRetentionSeconds: number
+  filterAdult: boolean
 }
 
 export interface SystemSettingsUpdateRequest {
   hitAndRun?: boolean | null
   keepSeedSeconds?: number | null
   cacheRetentionSeconds?: number | null
+  filterAdult?: boolean | null
 }
 
 export interface SystemStatusResponse {

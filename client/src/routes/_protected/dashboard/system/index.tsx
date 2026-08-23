@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { Separator } from '@/shared/components/ui/separator'
 
+import { AdultFilter } from './-features/adult-filter'
 import { Indexers } from './-features/indexers'
 import { KeepSeeding } from './-features/keep-seeding'
 import { NetworkAccessInfo } from './-features/network-access-info'
@@ -26,6 +27,9 @@ function SystemRoute() {
         </div>
         <div className="break-inside-avoid mb-4">
           <KeepSeeding />
+        </div>
+        <div className="break-inside-avoid mb-4">
+          <AdultFilter />
         </div>
         <div className="break-inside-avoid mb-4">
           <Restart />

@@ -27,10 +27,12 @@ def create_stremio_catalogs_service(
 ) -> StremioCatalogsService:
     torrent_files_service = create_torrent_files_service(db)
     torrent_source_provider_service = create_torrent_source_provider_service(db)
+    settings_service = create_settings_service(db)
 
     return StremioCatalogsService(
         torrent_files_service=torrent_files_service,
         torrent_source_provider_service=torrent_source_provider_service,
+        settings_service=settings_service,
     )
 
 

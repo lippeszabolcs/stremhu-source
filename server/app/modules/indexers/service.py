@@ -424,6 +424,8 @@ class IndexersService:
         indexer_accounts = await asyncio.to_thread(
             self._indexer_accounts_service.find_list
         )
+        system_settings = await asyncio.to_thread(self._settings_service.get_system)
+        exclude_adult = system_settings.filter_adult
 
         async def fetch_and_map(
             indexer_account: IndexerAccountModel,
@@ -435,8 +437,8 @@ class IndexersService:
             if not indexer_definition.supports_text_search:
                 return []
 
-            indexer_definition_torrents = (
-                await indexer_definition.find_torrents_by_text(query)
+            indexer_definition_torrents = await indexer_definition.find_torrents_by_text(
+                query, exclude_adult=exclude_adult
             )
             return [
                 IndexerTorrent(

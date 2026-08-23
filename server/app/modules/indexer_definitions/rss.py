@@ -156,8 +156,10 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
         return True
 
     async def _fetch_torrents_by_text(
-        self, query: str
+        self, query: str, exclude_adult: bool
     ) -> list[IndexerDefinitionTorrent]:
+        # Az RSS találatoknál nincs kategória — a felnőtt tartalom szűrése
+        # a katalógus-rétegben, a torrent neve alapján történik
         return await self._search_feed(query, imdb_id=None)
 
     async def _fetch_torrents(

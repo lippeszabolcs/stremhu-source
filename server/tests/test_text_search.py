@@ -6,9 +6,11 @@ from unittest.mock import AsyncMock, Mock
 
 import httpx
 
+from app.common.adult_filter import is_adult_name
 from app.modules.indexer_definitions.base_indexer_definition import IndexerClient
 from app.modules.indexer_definitions.integrations.ncore import NcoreIndexerDefinition
 from app.modules.indexers.schemas.internal import IndexerTorrent
+from app.modules.settings.schemas.internal import SystemSettings
 from app.modules.stremio.catalogs_service import StremioCatalogsService
 from app.modules.stremio.constants import SEARCH_ID
 from app.modules.stremio.enums import MediaType
@@ -224,10 +226,17 @@ class _CatalogProviderStub:
         return [], []
 
 
-def _create_catalogs_service(provider) -> StremioCatalogsService:
+def _create_catalogs_service(
+    provider, filter_adult: bool = True
+) -> StremioCatalogsService:
+    settings_service = Mock()
+    settings_service.get_system.return_value = SystemSettings(
+        filter_adult=filter_adult
+    )
     return StremioCatalogsService(
         torrent_files_service=Mock(),
         torrent_source_provider_service=provider,
+        settings_service=settings_service,
     )
 
 
@@ -318,6 +327,108 @@ def test_torrent_id_stream_includes_audio_files():
 
     # A hangfájl és a videó bekerül, a kép nem
     assert [stream.file_name for stream in streams] == ["01 - Dal.mp3", "klip.mkv"]
+
+
+def test_ncore_text_search_filters_adult_categories():
+    results = [
+        {
+            "torrent_id": 1,
+            "download_url": "https://ncore.pro/dl/1",
+            "seeders": "9",
+            "category": "xxx_hd",
+        },
+        {
+            "torrent_id": 2,
+            "download_url": "https://ncore.pro/dl/2",
+            "seeders": "5",
+            "category": "hd_hun",
+        },
+    ]
+    definition = _create_ncore(lambda request: _ncore_json_response(results))
+
+    # Alapból (exclude_adult=True) az xxx kategória kimarad
+    torrents = asyncio.run(definition.find_torrents_by_text("valami"))
+    assert [torrent.torrent_id for torrent in torrents] == ["2"]
+
+    # Kikapcsolt szűrésnél minden találat megmarad
+    torrents = asyncio.run(
+        definition.find_torrents_by_text("valami", exclude_adult=False)
+    )
+    assert [torrent.torrent_id for torrent in torrents] == ["1", "2"]
+
+
+def test_adult_name_matching():
+    assert is_adult_name("Nagy.Magyar.XXX.Valogatas.2020")
+    assert is_adult_name("Brazzers - Something 1080p")
+    assert is_adult_name("legjobb pornó gyűjtemény")
+    # Álpozitívak elkerülése (szó-határ illesztés)
+    assert not is_adult_name("Sussex.Downs.Documentary.2019")
+    assert not is_adult_name("Data.Analysis.Course")
+    assert not is_adult_name("Formula1.2026.07.26.Magyar.Futam")
+
+
+class _AdultCatalogProviderStub:
+    async def find_by_text(self, query: str):
+        sources = [
+            SimpleNamespace(
+                indexer_torrent=SimpleNamespace(seeders=seeders),
+                torrent_file=SimpleNamespace(
+                    indexer_id="rss-abc",
+                    torrent_id=torrent_id,
+                    info=SimpleNamespace(name=name),
+                ),
+            )
+            for torrent_id, name, seeders in [
+                ("1", "Csaladi.Film.2026", 3),
+                ("2", "Valami.XXX.Parody.2026", 9),
+            ]
+        ]
+        return sources, []
+
+    async def find_by_torrent_id(self, torrent_id: str):
+        return [], []
+
+
+def test_catalog_filters_adult_names_by_default():
+    service = _create_catalogs_service(_AdultCatalogProviderStub())
+
+    response = asyncio.run(
+        service.get_catalog(
+            MediaType.MOVIE,
+            SEARCH_ID,
+            ParsedExtra(search="valami"),
+        )
+    )
+
+    assert [meta.name for meta in response.metas] == ["Csaladi.Film.2026"]
+
+
+def test_catalog_keeps_adult_names_when_filter_disabled():
+    service = _create_catalogs_service(
+        _AdultCatalogProviderStub(), filter_adult=False
+    )
+
+    response = asyncio.run(
+        service.get_catalog(
+            MediaType.MOVIE,
+            SEARCH_ID,
+            ParsedExtra(search="valami"),
+        )
+    )
+
+    assert [meta.name for meta in response.metas] == [
+        "Valami.XXX.Parody.2026",
+        "Csaladi.Film.2026",
+    ]
+
+
+def test_system_settings_filter_adult_defaults_to_enabled():
+    # Új installnál és régi (kulcs nélküli) mentett beállításnál is BE
+    assert SystemSettings().filter_adult is True
+    migrated = SystemSettings.model_validate(
+        {"hit_and_run": False, "keep_seed_seconds": 0, "cache_retention_seconds": 1}
+    )
+    assert migrated.filter_adult is True
 
 
 def test_catalog_short_query_returns_empty():

@@ -243,21 +243,21 @@ class BaseIndexerDefinition(ABC):
         return False
 
     async def find_torrents_by_text(
-        self, query: str
+        self, query: str, exclude_adult: bool = True
     ) -> list[IndexerDefinitionTorrent]:
         """Szabadszöveges keresés a katalógus-keresőhöz (IMDb nélküli tartalmakhoz)."""
         if not self.supports_text_search:
             return []
 
         try:
-            return await self._fetch_torrents_by_text(query)
+            return await self._fetch_torrents_by_text(query, exclude_adult)
         except Exception as e:
             error_msg = f"{self.name} nem érhető el vagy megváltozott a struktúrája."
             self.logger.error(error_msg, exc_info=e)
             raise IndexerDefinitionException(error_msg) from e
 
     async def _fetch_torrents_by_text(
-        self, query: str
+        self, query: str, exclude_adult: bool
     ) -> list[IndexerDefinitionTorrent]:
         """Szabadszöveges keresés implementációja (csak ha supports_text_search)."""
         return []

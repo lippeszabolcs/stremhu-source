@@ -1,6 +1,8 @@
 from venv import logger
 
+from app.common.adult_filter import is_adult_name
 from app.common.database import db_session
+from app.modules.settings.service import SettingsService
 from app.modules.stremio.constants import (
     SEARCH_ID,
 )
@@ -24,9 +26,11 @@ class StremioCatalogsService:
         self,
         torrent_files_service: TorrentFilesService,
         torrent_source_provider_service: TorrentSourceProviderService,
+        settings_service: SettingsService,
     ):
         self._torrent_files_service = torrent_files_service
         self._torrent_source_provider_service = torrent_source_provider_service
+        self._settings_service = settings_service
 
     async def get_catalog(
         self,
@@ -69,6 +73,15 @@ class StremioCatalogsService:
             torrent_sources,
             _,
         ) = await self._torrent_source_provider_service.find_by_text(query)
+
+        # XXX kiszűrése (rendszerbeállítás, alapból BE): az nCore kategória
+        # szerint már szűrt, ez a név alapú háló a többi forráshoz
+        if self._settings_service.get_system().filter_adult:
+            torrent_sources = [
+                torrent_source
+                for torrent_source in torrent_sources
+                if not is_adult_name(torrent_source.torrent_file.info.name)
+            ]
 
         torrent_sources.sort(
             key=lambda source: source.indexer_torrent.seeders,

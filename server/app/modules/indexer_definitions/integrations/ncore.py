@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urljoin, urlparse
 import httpx
 from selectolax.parser import HTMLParser
 
+from app.common.adult_filter import is_adult_ncore_category
 from app.modules.indexer_definitions.base_indexer_definition import (
     BaseIndexerDefinition,
 )
@@ -80,11 +81,11 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         return True
 
     async def _fetch_torrents_by_text(
-        self, query: str
+        self, query: str, exclude_adult: bool
     ) -> list[IndexerDefinitionTorrent]:
         # Név szerinti keresés, csak az első (seeder szerint rendezett) oldal —
         # minden találat .torrentje letöltésre kerül, ezért nem lapozunk
-        result = await self._search("name", query, page=1)
+        result = await self._search("name", query, page=1, exclude_adult=exclude_adult)
         return result.torrents
 
     async def _fetch_torrents(
@@ -93,7 +94,11 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
         return await self._search("imdb", imdb_id, page=page or 1)
 
     async def _search(
-        self, search_field: str, search_value: str, page: int
+        self,
+        search_field: str,
+        search_value: str,
+        page: int,
+        exclude_adult: bool = False,
     ) -> IndexerDefinitionFindTorrentsResult:
         response = await self._client.get(
             "/torrents.php",
@@ -121,6 +126,8 @@ class NcoreIndexerDefinition(BaseIndexerDefinition):
 
         for torrent in data.get("results", []):
             category = torrent.get("category", "")
+            if exclude_adult and is_adult_ncore_category(category):
+                continue
             # IMDb nélküli tartalmaknál (pl. zene) az nCore imdb_id-ként
             # False-t ad vissza, nem szöveget
             imdb_id = torrent.get("imdb_id")
