@@ -18,8 +18,6 @@ from app.modules.indexer_definitions.schemas.internal import (
 from app.modules.media_attributes.constants import MediaAttributeKey
 
 # ─── Kategória → attribute_id mapping ────────────────────────────────────────
-# Kulcs: img src fájlnév stem (/img/cats/TV-Pack.png → "TV-Pack")
-# vagy img alt szöveg ("TV/Packs") — mindkettőt kezeljük.
 _CATEGORY_MAP: dict[str, list[str]] = {
     # ── src stem alapú kulcsok ──────────────────────────────────────────────
     "4K": [MediaAttributeKey.R2160P],
@@ -50,13 +48,13 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "TV-Xvid": [MediaAttributeKey.R480P],
     "TV-Mobile": [MediaAttributeKey.R480P],
     "TV-Non-English": [],
-    "TV-Pack": [],  # TV/Packs — src: TV-Pack.png
+    "TV-Pack": [],
     "TV-Packs": [],
     "TV-Packs-Non-English": [],
     "TV": [],
     "Documentaries": [],
     "Sports": [],
-    # ── alt szöveg alapú kulcsok (cím-keresés esetén az alt ki van töltve) ──
+    # ── alt szöveg alapú kulcsok ──────────────────────────────────────────────
     "Movie/4K": [MediaAttributeKey.R2160P],
     "Movie/HD/Bluray": [MediaAttributeKey.R1080P, MediaAttributeKey.BLURAY],
     "Movie/BD-R": [MediaAttributeKey.R1080P, MediaAttributeKey.BLURAY],
@@ -87,8 +85,6 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "TV/Packs/Non-English": [],
 }
 
-
-# TV kategória checkbox ID-k (a movie listával együtt mind be van jelölve)
 _TV_CATEGORY_IDS = [
     "73",
     "26",
@@ -145,11 +141,6 @@ _ALL_CATEGORY_IDS = [
 
 
 def _category_key(img_node) -> str:
-    """
-    Kategória kulcs kinyerése img node-ból.
-    Előnyt ad az alt attribútumnak (pl. "TV/Packs"), fallback az src stemre
-    (pl. "TV-Pack" a TV-Pack.png-ből). Mindkettő szerepel a _CATEGORY_MAP-ban.
-    """
     alt = (img_node.attributes.get("alt") or "").strip()
     if alt:
         return alt
@@ -211,7 +202,6 @@ def _attribute_ids_from_category_and_name(category: str, name: str) -> list[str]
 
 
 def _parse_torrent_rows(tree, imdb_id: str) -> list:
-    """HTML tree-ből kinyeri a torrent listát."""
     torrent_table = tree.css_first("table#torrents")
     if not torrent_table:
         return []
@@ -221,7 +211,6 @@ def _parse_torrent_rows(tree, imdb_id: str) -> list:
     seen_ids: set[str] = set()
 
     for row in rows:
-        # ── Kategória ──
         cat_img = row.css_first("td.i img")
         if not cat_img:
             continue
@@ -230,7 +219,6 @@ def _parse_torrent_rows(tree, imdb_id: str) -> list:
         if category not in _CATEGORY_MAP:
             continue
 
-        # ── Torrent cím és ID ──
         title_node = row.css_first('td.al a[href^="/t/"]')
         if not title_node:
             continue
@@ -246,7 +234,6 @@ def _parse_torrent_rows(tree, imdb_id: str) -> list:
             continue
         seen_ids.add(torrent_id)
 
-        # ── Download URL ──
         dl_node = row.css_first('a[href*="download.php/"]')
         if not dl_node:
             continue
@@ -258,7 +245,6 @@ def _parse_torrent_rows(tree, imdb_id: str) -> list:
                 "https://iptorrents.com", "/" + download_path.lstrip("/")
             )
 
-        # ── Seeders: utolsó előtti <td> ──
         tds = row.css("td")
         if len(tds) < 2:
             continue
@@ -294,6 +280,11 @@ class IptorrentsIndexerDefinition(BaseIndexerDefinition):
         return False
 
     @property
+    def max_concurrent(self) -> int:
+        # Az IPT szigorú rate-limitje miatt egyszerre csak 1 HTTP kérés mehet.
+        return 1
+
+    @property
     def url(self) -> str:
         return "https://iptorrents.com"
 
@@ -306,9 +297,7 @@ class IptorrentsIndexerDefinition(BaseIndexerDefinition):
         return "/t/{torrent_id}"
 
     def _detect_authentication_error(self, response: httpx.Response) -> AuthError:
-        request_path = str(response.url.path)
-        final_path = request_path
-
+        final_path = str(response.url.path)
         original_url = str(response.request.url)
         if response.history:
             original_url = str(response.history[0].url)
@@ -321,10 +310,7 @@ class IptorrentsIndexerDefinition(BaseIndexerDefinition):
 
         return None
 
-    async def _login(
-        self,
-        payload: IndexerDefinitionLoginPayload,
-    ) -> httpx.Response:
+    async def _login(self, payload: IndexerDefinitionLoginPayload) -> httpx.Response:
         return await self._client.post(
             self.login_path,
             data={
@@ -351,39 +337,28 @@ class IptorrentsIndexerDefinition(BaseIndexerDefinition):
     ) -> IndexerDefinitionFindTorrentsResult:
         current_page = page or 1
 
-        print(f"[IPT] searching imdb={imdb_id} page={current_page}")
-
-        # 1. kísérlet: keresés az összes mezőben (leírásban is) az IMDb ID-ra.
-        # Ez filmeknél jól működik, sorozatoknál kevésbé.
         params_all = self._build_params(imdb_id, "all", current_page)
         response = await self._client.get("/t", params=params_all)
         tree = HTMLParser(response.text)
         torrents = _parse_torrent_rows(tree, imdb_id)
-        print(f"[IPT] first search returned {len(torrents)} torrents")
 
-        # 2. kísérlet: ha nincs találat, próbálj cím+tag alapú keresést
-        # az IMDb ID rövid szám részével (pl. "tt0944947" → "0944947").
-        # Az IPT tag mezőjébe néha bekerül az IMDb ID, de a tt-prefix nélkül.
         active_tree = tree
         if not torrents:
-            numeric_id = imdb_id.lstrip("t")  # "tt0944947" → "0944947"
+            numeric_id = imdb_id.lstrip("t")
             params_ti = self._build_params(numeric_id, "all", current_page)
             response2 = await self._client.get("/t", params=params_ti)
             active_tree = HTMLParser(response2.text)
             torrents = _parse_torrent_rows(active_tree, imdb_id)
-        has_next = any(
-            f";p={current_page + 1}" in (node.attributes.get("href") or "")
-            or f"p={current_page + 1}" in (node.attributes.get("href") or "")
-            for node in active_tree.css("a[href]")
-        )
 
-        # Rendezés seederek szerint és csak a legjobb 20 találat megtartása
+        # Rendezés seederek szerint, csak a legjobb 20 megtartása.
+        # A pagination szándékosan le van tiltva (next_page=None), mert az IPT
+        # rate-limitje miatt a több oldalas lekérés 429-es hibákhoz vezet.
         torrents.sort(key=lambda t: t.seeders, reverse=True)
         torrents = torrents[:20]
 
         return IndexerDefinitionFindTorrentsResult(
             torrents=torrents,
-            next_page=current_page + 1 if has_next else None,
+            next_page=None,
         )
 
     async def _fetch_torrent(self, torrent_id: str) -> IndexerDefinitionTorrent | None:
@@ -419,7 +394,21 @@ class IptorrentsIndexerDefinition(BaseIndexerDefinition):
         )
 
     async def _fetch_hit_and_run_ids(self) -> list[str]:
-        return []
+        """
+        Lekéri a H&R kötelezettség alatt álló torrentek azonosítóit.
+        Az IPT /seeding_required.php oldala azokat a torrenteket listázza,
+        amelyek még nem teljesítették az 1:1 arányt VAGY a 336 óra seedelési időt.
+        """
+        response = await self._client.get("/seeding_required.php")
+        tree = HTMLParser(response.text)
+        rows = tree.css("tr[id^='line']")
+        hit_and_run_ids: list[str] = []
+        for row in rows:
+            row_id = row.attributes.get("id") or ""
+            torrent_id = row_id.removeprefix("line")
+            if torrent_id.isdigit():
+                hit_and_run_ids.append(torrent_id)
+        return hit_and_run_ids
 
     def _resolve_imdb_id(self, imdb_url: str | None) -> str | None:
         if not imdb_url:
