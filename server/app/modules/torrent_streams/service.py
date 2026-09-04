@@ -153,6 +153,7 @@ class TorrentStreamsService:
         torrent_stream: TorrentStream,
         excluded_attribute_ids: set[str],
         preference_multiple_map: dict[str, bool],
+        preference_strict_exclusion_map: dict[str, bool],
     ) -> bool:
         attributes_by_preference: dict[str, list[AttributeModel]] = {}
         unassociated_attributes: list[AttributeModel] = []
@@ -173,8 +174,9 @@ class TorrentStreamsService:
 
         for preference_id, attributes in attributes_by_preference.items():
             is_multiple = preference_multiple_map.get(preference_id, False)
+            strict_exclusion = preference_strict_exclusion_map.get(preference_id, False)
 
-            if is_multiple:
+            if is_multiple and not strict_exclusion:
                 if all(
                     attribute.id in excluded_attribute_ids for attribute in attributes
                 ):
@@ -200,6 +202,9 @@ class TorrentStreamsService:
         preference_multiple_map = {
             preference.id: preference.multiple for preference in preferences
         }
+        preference_strict_exclusion_map = {
+            preference.id: preference.strict_exclusion for preference in preferences
+        }
 
         filtered_torrent_streams: list[TorrentStream] = []
         for torrent_stream in torrent_streams:
@@ -213,6 +218,7 @@ class TorrentStreamsService:
                 torrent_stream=torrent_stream,
                 excluded_attribute_ids=excluded_attribute_ids,
                 preference_multiple_map=preference_multiple_map,
+                preference_strict_exclusion_map=preference_strict_exclusion_map,
             ):
                 continue
 
