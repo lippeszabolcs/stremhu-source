@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.modules.indexer_accounts.models import IndexerAccountModel
 from app.modules.indexer_definitions.schemas.internal import (
@@ -22,6 +22,8 @@ class IndexerLogin(IndexerDefinitionLogin):
 
 
 class IndexerTorrent(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     indexer_account: IndexerAccountModel
     torrent_id: str
     download_url: str

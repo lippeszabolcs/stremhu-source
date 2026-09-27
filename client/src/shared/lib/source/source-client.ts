@@ -483,8 +483,9 @@ export interface StremioCatalogResponse {
 export interface StremioStream {
   name: string
   description: string
-  url: string
-  behaviorHints: BehaviorHints
+  url?: string | null
+  externalUrl?: string | null
+  behaviorHints?: BehaviorHints | null
 }
 
 export interface StremioStreams {
