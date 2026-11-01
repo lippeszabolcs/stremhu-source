@@ -237,15 +237,22 @@ class RelayService:
         """Hiányzó fájl esetén force_recheck, torrentenként legfeljebb percenként."""
         info_hash = str(torrent_handle.info_hash())
         now = time.monotonic()
-        last = self._last_recheck_at.get(info_hash)
+        last_recheck_at = self.__dict__.setdefault("_last_recheck_at", {})
+        last = last_recheck_at.get(info_hash)
         if last is not None and now - last < RECHECK_COOLDOWN_SECONDS:
             return False
 
-        self._last_recheck_at[info_hash] = now
+        last_recheck_at[info_hash] = now
         logger.warning(
             f"⚠️ A torrent ({info_hash}) fájlja hiányzik a lemezről, újraellenőrzés indul."
         )
-        torrent_handle.force_recheck()
+        try:
+            torrent_handle.force_recheck()
+        except Exception as e:
+            # Az újraellenőrzés csak öngyógyítás: ha nem megy, a sima
+            # újrapróbálkozás még lefuthat.
+            logger.error(f"Nem sikerült az újraellenőrzés indítása ({info_hash}): {e}")
+            return False
         return True
 
     async def stream_sweeper_loop(self):
