@@ -247,8 +247,8 @@ def test_concurrent_scopes_use_distinct_dedup_keys():
     provider = TorrentSourceProviderService(
         indexers_service=IndexersStub(),  # type: ignore[arg-type]
         torrent_files_service=torrent_files_service,
+        isolated_torrent_files_service=Mock(),
     )
-    provider._touch_isolated = lambda identifiers: None  # type: ignore[method-assign]
 
     async def run():
         await asyncio.gather(

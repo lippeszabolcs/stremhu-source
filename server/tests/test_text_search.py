@@ -174,6 +174,7 @@ def test_provider_text_search_caps_results_before_sync():
     provider = TorrentSourceProviderService(
         indexers_service=indexers_service,
         torrent_files_service=Mock(),
+        isolated_torrent_files_service=Mock(),
     )
 
     synced: list[list[IndexerTorrent]] = []
@@ -237,6 +238,7 @@ def _create_catalogs_service(
         torrent_files_service=Mock(),
         torrent_source_provider_service=provider,
         settings_service=settings_service,
+        isolated_torrent_files_service=Mock(),
     )
 
 

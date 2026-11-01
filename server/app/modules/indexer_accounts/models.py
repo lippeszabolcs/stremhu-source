@@ -40,7 +40,9 @@ class IndexerAccountModel(Base):
 
     # Elsődleges tracker: alapból csak ezeken fut a keresés, a többi csak
     # tartalékként, ha az elsődlegesek nem adnak streamet
-    is_primary: Mapped[bool] = mapped_column(sa.Boolean, default=True)
+    is_primary: Mapped[bool] = mapped_column(
+        sa.Boolean, default=True, server_default=sa.text("1")
+    )
 
     cookies: Mapped[dict | None] = mapped_column(sa.JSON, default=None)
 
