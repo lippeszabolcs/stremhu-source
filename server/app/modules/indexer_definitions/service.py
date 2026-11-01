@@ -32,9 +32,7 @@ class IndexerDefinitionsService:
             instance = definition_class(indexer_account_storage)
             self._definitions[instance.id] = instance
 
-    def create_rss_instance(
-        self, config: RssConfig
-    ) -> GenericRssIndexerDefinition:
+    def create_rss_instance(self, config: RssConfig) -> GenericRssIndexerDefinition:
         """Beépített RSS definíció példányosítása a service account storage-ával."""
         return GenericRssIndexerDefinition(
             config=config,

@@ -107,13 +107,13 @@ def _create_service(provider: _ProviderStub) -> TorrentStreamsService:
 def test_no_fallback_when_primary_has_streams():
     provider = _ProviderStub(
         primary=[_create_source("ncore", "Movie.2020.1080p", ["Movie.2020.1080p.mkv"])],
-        secondary=[_create_source("torznab-abc", "Movie.2020.720p", ["Movie.720p.mkv"])],
+        secondary=[
+            _create_source("torznab-abc", "Movie.2020.720p", ["Movie.720p.mkv"])
+        ],
     )
     service = _create_service(provider)
 
-    streams, errors = asyncio.run(
-        service.find_by_imdb(_create_user(), "tt1234567")
-    )
+    streams, errors = asyncio.run(service.find_by_imdb(_create_user(), "tt1234567"))
 
     assert provider.calls == [IndexerSearchScope.PRIMARY]
     assert len(streams) == 1
@@ -188,9 +188,7 @@ def test_fallback_when_episode_not_resolvable_from_primary():
     service = _create_service(provider)
 
     series = SeriesInfo(season=2, episode=1)
-    streams, _ = asyncio.run(
-        service.find_by_imdb(_create_user(), "tt1234567", series)
-    )
+    streams, _ = asyncio.run(service.find_by_imdb(_create_user(), "tt1234567", series))
 
     assert provider.calls == [
         IndexerSearchScope.PRIMARY,
@@ -205,9 +203,7 @@ def test_fallback_merges_primary_sources_and_errors():
     # (pl. sorozatnál részleges epizód-fedés), és a hibák összefésülődnek
     provider = _ProviderStub(
         primary=[
-            _create_source(
-                "ncore", "Series.S01.1080p", ["Series.S01E01.1080p.mkv"]
-            )
+            _create_source("ncore", "Series.S01.1080p", ["Series.S01E01.1080p.mkv"])
         ],
         secondary=[
             _create_source(

@@ -469,8 +469,10 @@ class IndexersService:
             if not indexer_definition.supports_text_search:
                 return []
 
-            indexer_definition_torrents = await indexer_definition.find_torrents_by_text(
-                query, exclude_adult=exclude_adult
+            indexer_definition_torrents = (
+                await indexer_definition.find_torrents_by_text(
+                    query, exclude_adult=exclude_adult
+                )
             )
             return [
                 IndexerTorrent(

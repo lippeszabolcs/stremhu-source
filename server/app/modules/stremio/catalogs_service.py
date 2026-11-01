@@ -1,8 +1,8 @@
 import asyncio
 
 from app.common.adult_filter import is_adult_name
-from app.modules.settings.service import SettingsService
 from app.common.logger import logger
+from app.modules.settings.service import SettingsService
 from app.modules.stremio.constants import (
     SEARCH_ID,
 )

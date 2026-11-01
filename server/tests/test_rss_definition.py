@@ -68,6 +68,7 @@ def test_cinemeta_caches_successful_resolution():
     # A sikeres feloldás cache-elődött → csak egyszer hívta a Cinemeta-t
     assert calls["n"] == 1
 
+
 _LOGIN = IndexerDefinitionLogin(username="rss", password="")
 
 

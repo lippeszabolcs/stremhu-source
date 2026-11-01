@@ -64,9 +64,7 @@ _ACCOUNTS = [
 
 def _searched_indexer_ids(scope: IndexerSearchScope) -> set[str]:
     service = _create_service(_ACCOUNTS)
-    torrents, errors = asyncio.run(
-        service.get_torrents_by_imdb_id("tt1234567", scope)
-    )
+    torrents, errors = asyncio.run(service.get_torrents_by_imdb_id("tt1234567", scope))
     assert errors == []
     return {torrent.indexer_account.indexer_id for torrent in torrents}
 

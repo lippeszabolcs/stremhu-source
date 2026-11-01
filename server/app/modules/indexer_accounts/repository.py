@@ -29,9 +29,7 @@ class IndexerAccountsRepository:
 
         return model
 
-    def find_list(
-        self, is_primary: bool | None = None
-    ) -> list[IndexerAccountModel]:
+    def find_list(self, is_primary: bool | None = None) -> list[IndexerAccountModel]:
         query = self.db.query(IndexerAccountModel).options(
             joinedload(IndexerAccountModel.indexer_definition)
         )

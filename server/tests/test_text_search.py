@@ -231,9 +231,7 @@ def _create_catalogs_service(
     provider, filter_adult: bool = True
 ) -> StremioCatalogsService:
     settings_service = Mock()
-    settings_service.get_system.return_value = SystemSettings(
-        filter_adult=filter_adult
-    )
+    settings_service.get_system.return_value = SystemSettings(filter_adult=filter_adult)
     return StremioCatalogsService(
         torrent_files_service=Mock(),
         torrent_source_provider_service=provider,
@@ -406,9 +404,7 @@ def test_catalog_filters_adult_names_by_default():
 
 
 def test_catalog_keeps_adult_names_when_filter_disabled():
-    service = _create_catalogs_service(
-        _AdultCatalogProviderStub(), filter_adult=False
-    )
+    service = _create_catalogs_service(_AdultCatalogProviderStub(), filter_adult=False)
 
     response = asyncio.run(
         service.get_catalog(

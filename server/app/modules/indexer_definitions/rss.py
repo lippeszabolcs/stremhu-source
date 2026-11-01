@@ -187,9 +187,7 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
         response = await self._request_feed(query)
         channel = self._parse_channel(response)
         if channel is None:
-            raise Exception(
-                f"A(z) {self.name} nem adott értelmezhető RSS választ."
-            )
+            raise Exception(f"A(z) {self.name} nem adott értelmezhető RSS választ.")
 
         torrents: list[IndexerDefinitionTorrent] = []
         for item in channel.findall("item"):
@@ -211,9 +209,7 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
                 )
             )
 
-        unique_torrents = pydash.uniq_by(
-            torrents, lambda torrent: torrent.torrent_id
-        )
+        unique_torrents = pydash.uniq_by(torrents, lambda torrent: torrent.torrent_id)
         unique_torrents.sort(key=lambda torrent: torrent.seeders, reverse=True)
 
         return unique_torrents[:_MAX_RESULTS]
@@ -240,9 +236,7 @@ class GenericRssIndexerDefinition(BaseIndexerDefinition):
     # --- Belső segédek ---
 
     def build_search_url(self, query: str) -> str:
-        return self._config.search_url_template.replace(
-            QUERY_PLACEHOLDER, quote(query)
-        )
+        return self._config.search_url_template.replace(QUERY_PLACEHOLDER, quote(query))
 
     async def _request_feed(self, query: str) -> httpx.Response:
         # Abszolút URL-t használunk, így a kliens base_url-je nem játszik
