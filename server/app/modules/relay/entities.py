@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -15,6 +16,7 @@ import content_types
 import libtorrent as libtorrent
 from fastapi import Request
 
+from app.common.async_utils import fire_and_forget
 from app.common.constants import (
     CHUNK_SIZE,
     PRIO_0,
@@ -260,7 +262,17 @@ class Stream:
 
         self.is_destroying = False
 
-        self.file.streams[self.id] = self
+        # A kliens kérése (a stream indulásakor töltődik) és az utolsó
+        # tényleges adatküldés ideje — a szellem-streamek kiszűréséhez.
+        self.request: Request | None = None
+        self.bytes_sent = 0
+        self.last_activity_at = time.monotonic()
+
+        # FIGYELEM: a stream szándékosan NEM itt kerül az aktív listába, hanem
+        # a generátor első lépésénél (_stream_inner). Ha a kliens még az első
+        # bájt előtt bontja a kapcsolatot, a generátor sosem indul el, és a
+        # korábbi megoldásnál a bejegyzés örökre az aktív listában maradt
+        # ("szellem-stream"), ami betöltötte a felhasználó lejátszási limitjét.
 
     @property
     def stream_pieces_range(self) -> range:
@@ -318,13 +330,37 @@ class Stream:
         self,
         request: Request,
     ) -> AsyncIterator[bytes]:
+        self.request = request
         return self._stream_inner(request)
+
+    @property
+    def is_registered(self) -> bool:
+        return self.file.streams.get(self.id) is self
+
+    def register(self) -> None:
+        self.file.streams[self.id] = self
+        self.last_activity_at = time.monotonic()
+
+    @property
+    def idle_seconds(self) -> float:
+        return time.monotonic() - self.last_activity_at
+
+    async def is_client_gone(self) -> bool:
+        """Igaz, ha a kliens már bontotta a kapcsolatot (vagy ez nem dönthető el)."""
+        if self.request is None:
+            return False
+        try:
+            return await self.request.is_disconnected()
+        except Exception:
+            return True
 
     async def _stream_inner(
         self,
         request: Request,
     ) -> AsyncIterator[bytes]:
         try:
+            self.register()
+
             for piece_index in range(
                 self.stream_start_piece_index, self.stream_end_piece_index + 1
             ):
@@ -359,7 +395,10 @@ class Stream:
                     if await request.is_disconnected():
                         disconnected = True
                         break
-                    yield view[chunk_start : chunk_start + CHUNK_SIZE].tobytes()
+                    chunk = view[chunk_start : chunk_start + CHUNK_SIZE].tobytes()
+                    self.bytes_sent += len(chunk)
+                    self.last_activity_at = time.monotonic()
+                    yield chunk
 
                 if disconnected:
                     break
@@ -369,4 +408,6 @@ class Stream:
         except Exception:
             logger.exception("Hiba történt a fájl streamelése közben.")
         finally:
-            asyncio.create_task(self.destroy())
+            # Erős referenciát tartó indítás: a sima create_task-ot a GC
+            # elvihette volna futás közben, és a stream beragadt volna.
+            fire_and_forget(self.destroy())

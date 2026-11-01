@@ -1,4 +1,5 @@
 import asyncio
+import time
 from collections.abc import Callable
 
 import libtorrent as libtorrent
@@ -12,6 +13,15 @@ from app.modules.relay.schemas import (
     RelaySettingsUpdate,
     RelayTorrent,
 )
+
+# Hiányzó fájl miatti újraellenőrzés: ennyi másodpercen belül egy torrentre
+# legfeljebb egyszer kérünk force_recheck-et.
+RECHECK_COOLDOWN_SECONDS = 60
+
+# Szellem-stream takarítás: ilyen gyakran fut a söprés, és ennyi ideje
+# adatküldés nélkül álló (nem bontott) streamet is kitakarít.
+STREAM_SWEEP_INTERVAL_SECONDS = 15
+STALE_STREAM_SECONDS = 300
 
 
 class RelayService:
@@ -64,6 +74,7 @@ class RelayService:
 
         self._piece_fetch_tasks: dict[tuple[str, int], asyncio.Task[bytes]] = {}
         self._pending_piece_reads: dict[tuple[str, int], asyncio.Future[bytes]] = {}
+        self._last_recheck_at: dict[str, float] = {}
 
         # Event hooks for resume data management (Observer Pattern)
         self.on_save_resume: list[Callable[[str, bytes], None]] = []
@@ -184,6 +195,12 @@ class RelayService:
                         torrent_handle, piece_index, request_key
                     )
                 except FileNotFoundError:
+                    # A libtorrent szerint megvan a darab, de a fájl nincs a
+                    # lemezen (pl. egy azonos mappanevű másik torrent törlése
+                    # vitte el). Újraellenőrzést kérünk, hogy a hiányzó
+                    # darabok újra letöltődjenek; a következő kör már a
+                    # letöltésre vár (piece_finished → read_piece).
+                    self.recheck_after_missing_file(torrent_handle)
                     if attempt < 3:
                         await asyncio.sleep(0.5)
                         continue
@@ -212,6 +229,56 @@ class RelayService:
                 self._pending_piece_reads.pop(request_key, None)
             if not future.done():
                 future.cancel()
+
+    def recheck_after_missing_file(
+        self,
+        torrent_handle: libtorrent.torrent_handle,
+    ) -> bool:
+        """Hiányzó fájl esetén force_recheck, torrentenként legfeljebb percenként."""
+        info_hash = str(torrent_handle.info_hash())
+        now = time.monotonic()
+        last = self._last_recheck_at.get(info_hash)
+        if last is not None and now - last < RECHECK_COOLDOWN_SECONDS:
+            return False
+
+        self._last_recheck_at[info_hash] = now
+        logger.warning(
+            f"⚠️ A torrent ({info_hash}) fájlja hiányzik a lemezről, újraellenőrzés indul."
+        )
+        torrent_handle.force_recheck()
+        return True
+
+    async def stream_sweeper_loop(self):
+        """Kitakarítja a bontott kapcsolatú vagy régóta tétlen streameket.
+
+        Ezek egyébként az aktív listában maradnának, és betöltenék a
+        felhasználó egyidejű lejátszási limitjét ("szellem-streamek").
+        """
+        while True:
+            await asyncio.sleep(STREAM_SWEEP_INTERVAL_SECONDS)
+            try:
+                await self.sweep_streams()
+            except Exception:
+                logger.exception("Hiba a stream-takarítás közben.")
+
+    async def sweep_streams(self) -> list[Stream]:
+        swept: list[Stream] = []
+        for stream in self.get_active_streams():
+            if stream.is_destroying:
+                continue
+
+            client_gone = await stream.is_client_gone()
+            stale = stream.idle_seconds > STALE_STREAM_SECONDS
+
+            if client_gone or stale:
+                reason = "a kliens bontotta a kapcsolatot" if client_gone else "tétlen"
+                logger.warning(
+                    f"🧹 Beragadt stream kitakarítása ({reason}): {stream.file.name}"
+                )
+                await stream.destroy()
+                swept.append(stream)
+
+        return swept
 
     def add_torrent(
         self,
@@ -298,12 +365,44 @@ class RelayService:
 
         self._torrents.pop(info_hash, None)
 
-        self._libtorrent_session.remove_torrent(
-            torrent_handle,
-            libtorrent.options_t.delete_files,
-        )
+        if self._has_other_torrent_with_same_root(torrent_handle):
+            # Ugyanaz a kiadás több trackerről = azonos mappa a lemezen.
+            # A fájlok törlése a másik torrent adatát is elvinné, ezért csak
+            # a torrentet vesszük ki; a fájlok az utolsó példánnyal törlődnek.
+            logger.warning(
+                f"⚠️ A törölt torrent ({info_hash}) mappáját másik aktív torrent is használja, a fájlok megmaradnak."
+            )
+            self._libtorrent_session.remove_torrent(torrent_handle)
+        else:
+            self._libtorrent_session.remove_torrent(
+                torrent_handle,
+                libtorrent.options_t.delete_files,
+            )
 
         return True
+
+    @staticmethod
+    def _torrent_root_name(torrent_handle: libtorrent.torrent_handle) -> str | None:
+        torrent_file = torrent_handle.torrent_file()
+        if torrent_file is None:
+            return None
+        return torrent_file.name()
+
+    def _has_other_torrent_with_same_root(
+        self,
+        torrent_handle: libtorrent.torrent_handle,
+    ) -> bool:
+        root_name = self._torrent_root_name(torrent_handle)
+        if not root_name:
+            return False
+
+        own_info_hash = torrent_handle.info_hash()
+        for other in self._libtorrent_session.get_torrents():
+            if not other.is_valid() or other.info_hash() == own_info_hash:
+                continue
+            if self._torrent_root_name(other) == root_name:
+                return True
+        return False
 
     def trigger_save_resume_data(self):
         for torrent_handle in self._libtorrent_session.get_torrents():
@@ -350,6 +449,20 @@ class RelayService:
                         request_key = (info_hash, piece_index)
                         if request_key in self._pending_piece_reads:
                             alert.handle.read_piece(piece_index)
+                        self.trigger_priority_update(info_hash)
+
+                    case libtorrent.torrent_checked_alert():
+                        # Újraellenőrzés után a meglévő darabokra nem jön
+                        # piece_finished, ezért a várakozó olvasásokat itt
+                        # indítjuk újra.
+                        info_hash = str(alert.handle.info_hash())
+                        for pending_hash, piece_index in list(
+                            self._pending_piece_reads.keys()
+                        ):
+                            if pending_hash == info_hash and alert.handle.have_piece(
+                                piece_index
+                            ):
+                                alert.handle.read_piece(piece_index)
                         self.trigger_priority_update(info_hash)
 
                     case libtorrent.read_piece_alert():

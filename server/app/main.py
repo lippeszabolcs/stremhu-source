@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     restore_torrents()
 
     priority_manager_task = asyncio.create_task(relay_service.priority_manager_loop())
+    stream_sweeper_task = asyncio.create_task(relay_service.stream_sweeper_loop())
 
     if not config.reverse_proxy_domain:
         asyncio.create_task(verify_self_connection())
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
     await indexer_definitions_service.close_all()
 
     priority_manager_task.cancel()
+    stream_sweeper_task.cancel()
     scheduler.shutdown()
     save_task.cancel()
 
