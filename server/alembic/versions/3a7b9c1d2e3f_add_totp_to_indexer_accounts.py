@@ -1,7 +1,7 @@
 """add_totp_to_indexer_accounts
 
 Revision ID: 3a7b9c1d2e3f
-Revises: 00e4b6a295c8
+Revises: c4f8e21a6d93
 Create Date: 2026-08-10 12:15:00.000000
 
 """
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "3a7b9c1d2e3f"
-down_revision: str | None = "00e4b6a295c8"
+down_revision: str | None = "c4f8e21a6d93"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
